@@ -20,6 +20,9 @@ on:
       hardware_run_id:
         description: Optional exact hardware run supplying first-release components
         required: false
+      reuse_base_run_id:
+        description: Exact prior run supplying the unchanged Alpine base
+        required: false
 permissions:
   contents: read
   actions: read
@@ -75,7 +78,6 @@ jobs:
           python boot/build-pongo.py --output out/boot/pongo.bin
           python boot/generate-logo.py --output out/boot/alpine-logo.h
           python boot/pongo/test-renderer.py
-          python boot/m1n1/test-splash.py
           tar -C out -czf out/boot-inputs.tar.gz boot
           tar -C boot/pongo/.work/source --exclude=.git -czf out/pongo-source.tar.gz .
       - uses: actions/upload-artifact@v4
@@ -127,6 +129,7 @@ jobs:
       - name: Build branded loader with the shared recipe
         run: |
           python boot/build-loader.py --logo-header out/boot/alpine-logo.h --output out/boot/m1n1.bin
+          python boot/m1n1/test-splash.py
           tar -C out -czf out/distro-boot.tar.gz boot
       - uses: actions/upload-artifact@v4
         with:
@@ -141,15 +144,26 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
+      - name: Reuse the unchanged signed Alpine base
+        if: inputs.reuse_base_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: minimal-base
+          path: out
+          run-id: ${{ inputs.reuse_base_run_id }}
+          github-token: ${{ github.token }}
       - uses: actions/checkout@v4
+        if: inputs.reuse_base_run_id == ''
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
+        if: inputs.reuse_base_run_id == ''
         with:
           python-version: '3.12'
       - run: sudo apt-get update && sudo apt-get install -y skopeo umoci
+        if: inputs.reuse_base_run_id == ''
       - name: Reuse the tested first-release wheel pair
-        if: inputs.cli_run_id != ''
+        if: inputs.reuse_base_run_id == '' && inputs.cli_run_id != ''
         uses: actions/download-artifact@v4
         with:
           name: cli-wheel-pair
@@ -158,7 +172,9 @@ jobs:
           run-id: ${{ inputs.cli_run_id }}
           github-token: ${{ github.token }}
       - run: bash ci/dependencies --wheels-only
+        if: inputs.reuse_base_run_id == ''
       - name: Build the pinned Alpine base without a container daemon
+        if: inputs.reuse_base_run_id == ''
         run: |
           sudo "$PWD/.venv/bin/python" build_base.py --native --output out/base/base.tar.gz
           tar -C out -czf out/alpine-base.tar.gz base
