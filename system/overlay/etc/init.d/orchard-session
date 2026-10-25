@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+description="Retain the authenticated recovery session without rebinding hardware"
+depend() { provide dev; }
+start() {
+    ebegin "Preparing key-only Orchard diagnostics"
+    test -c /dev/null && test -r /proc/mounts && test -d /sys/class &&
+    test -s /run/recovery/authorized_keys &&
+    test -s /run/recovery/ssh_host_ed25519_key &&
+    test -d /run/orchard &&
+    mkdir -p /root/.ssh && chmod 700 /root/.ssh &&
+    test ! -L /root/.ssh/authorized_keys &&
+    touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys &&
+    { test /run/recovery/authorized_keys -ef /root/.ssh/authorized_keys ||
+      mount --bind /run/recovery/authorized_keys /root/.ssh/authorized_keys; }
+    eend $?
+}

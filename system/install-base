@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+apk add --no-cache openrc python3 bash kmod util-linux e2fsprogs openssh-client-default merge-usr
+merge-usr --dryrun
+merge-usr
+apk del merge-usr
+apk info -v > /etc/alpine-packages.lock
+rm -f /etc/machine-id /var/lib/dbus/machine-id
+test "$(readlink /lib)" = usr/lib
+test "$(readlink /bin)" = usr/bin
+test "$(readlink /sbin)" = usr/sbin
+test ! -e /usr/lib/systemd/systemd

@@ -1,0 +1,4 @@
+# Alpine 3.24.3, official arm64 image; package indexes remain signed.
+FROM docker.io/library/alpine@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+COPY install-base /tmp/install-base
+RUN sh /tmp/install-base && rm /tmp/install-base

@@ -1,0 +1,7 @@
+#!/sbin/openrc-run
+description="Continue recovery USB DHCP without reconfiguring the gadget"
+command="/usr/libexec/minimal-linux/busybox"
+command_args="udhcpd -f /etc/udhcpd.conf"
+command_background=true
+pidfile="/run/orchard-dhcp.pid"
+depend() { need orchard-session; }

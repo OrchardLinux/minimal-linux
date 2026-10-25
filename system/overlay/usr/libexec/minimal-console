@@ -1,0 +1,56 @@
+#!/usr/bin/python3
+"""Map tty1 after readiness; do not enable a noisy recovery boot console."""
+import fcntl
+import json
+import os
+import stat
+import struct
+
+
+def mute_demo_keys(fd):
+    """Keep evdev bindings, but do not type VT function-key escape strings."""
+    changed = 0
+    for table in range(256):
+        for code in (114,):  # Only volume down produces the unwanted VT text.
+            entry = bytearray(struct.pack('BBH', table, code, 0))
+            fcntl.ioctl(fd, 0x4b46, entry, True)  # KDGKBENT
+            value = struct.unpack('BBH', entry)[2]
+            if value in (0x0200, 0x027f):  # K_HOLE / K_NOSUCHMAP: leave alone.
+                continue
+            fcntl.ioctl(fd, 0x4b47, struct.pack('BBH', table, code, 0x0200))
+            changed += 1
+    return changed
+
+
+def activate():
+    fd = os.open('/dev/fb0', os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        if not stat.S_ISCHR(os.fstat(fd).st_mode):
+            raise ValueError('Expected framebuffer character device')
+        fixed = bytearray(80)
+        fcntl.ioctl(fd, 0x4602, fixed, True)
+        if bytes(fixed[:16]).rstrip(b'\0') != b'simpledrmdrmfb':
+            raise ValueError('Unexpected display driver')
+        fcntl.ioctl(fd, 0x4610, struct.pack('<II', 1, 0))  # FBIOPUT_CON2FBMAP
+        mapping = bytearray(struct.pack('<II', 1, 0))
+        fcntl.ioctl(fd, 0x460f, mapping, True)
+        if struct.unpack('<II', mapping) != (1, 0):
+            raise ValueError('Console mapping did not take effect')
+    finally:
+        os.close(fd)
+    terminal = os.open('/dev/tty0', os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        fcntl.ioctl(terminal, 0x5606, 1)  # VT_ACTIVATE, not power management.
+    finally:
+        os.close(terminal)
+    terminal = os.open('/dev/tty1', os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        muted = mute_demo_keys(terminal)
+    finally:
+        os.close(terminal)
+    return {'console': 'tty1', 'framebuffer': 0, 'active': True,
+            'demo_key_bindings_muted': muted}
+
+
+if __name__ == '__main__':
+    print(json.dumps(activate()))

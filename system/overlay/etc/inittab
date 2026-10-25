@@ -1,0 +1,7 @@
+# BusyBox PID 1 calls OpenRC. /dev, /proc, /sys and /run arrive from handoff.
+::sysinit:/bin/mkdir -p /run/openrc
+::sysinit:/sbin/openrc sysinit
+::sysinit:/sbin/openrc boot
+::wait:/sbin/openrc default
+tty1::respawn:/sbin/getty 38400 tty1
+::shutdown:/sbin/openrc shutdown

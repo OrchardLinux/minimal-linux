@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="Physical brightness and backlight toggle demo; never suspend"
+command="/usr/libexec/minimal-buttons"
+command_background=true
+pidfile="/run/orchard-buttons.pid"
+depend() { need orchard-platform; before orchard-ready; }
+start_pre() {
+    checkpath --directory --mode 0700 --owner root:root /run/minimal-linux
+}

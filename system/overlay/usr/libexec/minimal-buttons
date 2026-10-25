@@ -1,0 +1,111 @@
+#!/usr/bin/python3
+"""Small OpenRC evdev binding layer for the existing tested backlight helpers.
+
+Read only gpio-keys, never grab it. No suspend, reboot, touch or driver writes.
+"""
+import json
+import os
+from pathlib import Path
+import selectors
+import signal
+import stat
+import struct
+import subprocess
+
+EVENT = struct.Struct('<qqHHi')  # Linux ARM64 input_event, 24 bytes.
+EV_KEY, VOLUME_DOWN, VOLUME_UP, POWER = 1, 114, 115, 116
+RUNTIME = Path('/run/minimal-linux')
+
+
+def key_bits(text):
+    bits = 0
+    for word in text.split():
+        bits = (bits << 64) | int(word, 16)
+    return bits
+
+
+def find_keys(directory=Path('/sys/class/input')):
+    candidates = []
+    for event in directory.glob('event*'):
+        device = event / 'device'
+        if (device / 'name').read_text().strip() != 'gpio-keys':
+            continue
+        bits = key_bits((device / 'capabilities/key').read_text())
+        if all(bits & (1 << code) for code in (VOLUME_DOWN, VOLUME_UP, POWER)):
+            candidates.append(event.name)
+    if len(candidates) != 1:
+        raise ValueError('Expected exactly one physical gpio-keys device')
+    return Path('/dev/input') / candidates[0]
+
+
+class Bindings:
+    def __init__(self, execute):
+        self.execute = execute
+        self.power_down = False
+
+    def handle(self, kind, code, value):
+        if kind != EV_KEY:
+            return
+        if code in (VOLUME_UP, VOLUME_DOWN) and value in (1, 2):
+            self.execute('up' if code == VOLUME_UP else 'down')
+        elif code == POWER:
+            if value == 1:
+                self.power_down = True
+            elif value == 0 and self.power_down:
+                self.power_down = False
+                self.execute('toggle')
+            # Repeat/held power events never trigger repeated blanking.
+
+
+def execute(action):
+    commands = {
+        'up': ['/usr/libexec/minimal-brightness-display', '--no-osd', '+5%'],
+        'down': ['/usr/libexec/minimal-brightness-display', '--no-osd', '-5%'],
+        'toggle': ['/usr/libexec/minimal-screen-toggle'],
+    }
+    env = {**os.environ, 'XDG_RUNTIME_DIR': str(RUNTIME)}
+    result = subprocess.run(commands[action], check=True, capture_output=True, text=True, env=env)
+    record = {'action': action, 'result': result.stdout.strip()}
+    temporary = RUNTIME / 'buttons-last.pending'
+    temporary.write_text(json.dumps(record) + '\n')
+    temporary.chmod(0o600)
+    os.replace(temporary, RUNTIME / 'buttons-last.json')
+
+
+def main():
+    if Path('/proc/device-tree/compatible').read_bytes().split(b'\0')[0] != b'apple,j71b':
+        raise ValueError('Wrong platform for the J71b button demo')
+    RUNTIME.mkdir(mode=0o700, exist_ok=True)
+    info = RUNTIME.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077:
+        raise ValueError('Button runtime directory must be private and root-owned')
+    node = find_keys()
+    fd = os.open(node, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        if not stat.S_ISCHR(os.fstat(fd).st_mode):
+            raise ValueError('Input node is not a character device')
+        running = True
+        def stop(signum, frame):
+            nonlocal running
+            running = False
+        signal.signal(signal.SIGTERM, stop)
+        signal.signal(signal.SIGINT, stop)
+        bindings, pending = Bindings(execute), bytearray()
+        with selectors.DefaultSelector() as selector:
+            selector.register(fd, selectors.EVENT_READ)
+            while running:
+                if not selector.select(timeout=1):
+                    continue
+                data = os.read(fd, EVENT.size * 64)
+                if not data:
+                    raise RuntimeError('Physical key device disconnected')
+                pending.extend(data)
+                while len(pending) >= EVENT.size:
+                    _, _, kind, code, value = EVENT.unpack(pending[:EVENT.size])
+                    del pending[:EVENT.size]
+                    bindings.handle(kind, code, value)
+    finally:
+        os.close(fd)
+
+
+if __name__ == '__main__':main()

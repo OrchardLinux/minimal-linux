@@ -1,0 +1,74 @@
+#!/usr/bin/python3
+"""Clear only the inherited simpledrm framebuffer; never change backlight/power.
+
+Run by the image's readiness helper, not by hardware preparation or Pongo.
+Linux ARM64 fbdev ABI; geometry and byte bounds come from the current driver.
+"""
+import fcntl
+import json
+import os
+import stat
+import struct
+
+FBIOGET_VSCREENINFO = 0x4600
+FBIOGET_FSCREENINFO = 0x4602
+FBIOBLANK = 0x4611
+MAX_BYTES = 64 * 1024 * 1024
+
+
+def black_frame(variable, fixed):
+    x, y, xv, yv, xo, yo, bpp, gray = struct.unpack_from('<8I', variable)
+    name = bytes(fixed[:16]).rstrip(b'\0')
+    capacity = struct.unpack_from('<I', fixed, 24)[0]
+    kind, auxiliary, visual = struct.unpack_from('<3I', fixed, 28)
+    stride = struct.unpack_from('<I', fixed, 48)[0]
+    if (name != b'simpledrmdrmfb' or kind != 0 or visual != 2 or gray or bpp != 32 or
+            not (0 < x <= xv <= 8192 and 0 < y <= yv <= 8192) or
+            xo + x > xv or yo + y > yv or stride < xv * 4 or stride % 4):
+        raise ValueError('Unsupported framebuffer geometry/format; nothing written')
+    length = stride * yv
+    if not 0 < length <= min(capacity, MAX_BYTES):
+        raise ValueError('Framebuffer byte bounds invalid; nothing written')
+    masks = 0
+    alpha = 0
+    for index, offset in enumerate((32, 44, 56, 68)):
+        shift, bits, msb_right = struct.unpack_from('<3I', variable, offset)
+        if msb_right or bits > 8 or shift + bits > 32 or (index < 3 and bits != 8):
+            raise ValueError('Unsupported framebuffer bitfield; nothing written')
+        mask = ((1 << bits) - 1) << shift
+        if masks & mask:
+            raise ValueError('Overlapping framebuffer channels; nothing written')
+        masks |= mask
+        if index == 3:
+            alpha = mask
+    pixel = struct.pack('<I', alpha)  # Black RGB; opaque if an alpha channel exists.
+    row = pixel * xv + b'\0' * (stride - xv * 4)
+    return row * yv, {'width': x, 'height': y, 'stride': stride, 'bytes': length}
+
+
+def clear():
+    fd = os.open('/dev/fb0', os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        if not stat.S_ISCHR(os.fstat(fd).st_mode):
+            raise ValueError('Framebuffer is not a character device')
+        variable, fixed = bytearray(160), bytearray(80)
+        fcntl.ioctl(fd, FBIOGET_VSCREENINFO, variable, True)
+        fcntl.ioctl(fd, FBIOGET_FSCREENINFO, fixed, True)
+        frame, result = black_frame(variable, fixed)
+        view = memoryview(frame)
+        offset = 0
+        while offset < len(frame):
+            written = os.pwrite(fd, view[offset:], offset)
+            if written <= 0:
+                raise OSError('Framebuffer write made no progress')
+            offset += written
+        # Activate this already-black fbdev buffer so the inherited boot plane
+        # cannot remain scanned out. This does not blank the panel/backlight.
+        fcntl.ioctl(fd, FBIOBLANK, 0)
+        return {'cleared': True, **result}
+    finally:
+        os.close(fd)
+
+
+if __name__ == '__main__':
+    print(json.dumps(clear()))
