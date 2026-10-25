@@ -23,6 +23,9 @@ on:
       reuse_base_run_id:
         description: Exact prior run supplying the unchanged Alpine base
         required: false
+      reuse_pongo_run_id:
+        description: Exact prior run supplying unchanged branded Pongo and artwork
+        required: false
 permissions:
   contents: read
   actions: read
@@ -66,14 +69,26 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     steps:
+      - name: Reuse the unchanged branded Pongo and artwork
+        if: inputs.reuse_pongo_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: minimal-boot-inputs
+          path: out
+          run-id: ${{ inputs.reuse_pongo_run_id }}
+          github-token: ${{ github.token }}
       - uses: actions/checkout@v4
+        if: inputs.reuse_pongo_run_id == ''
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
+        if: inputs.reuse_pongo_run_id == ''
         with:
           python-version: '3.12'
       - run: brew install imagemagick librsvg
+        if: inputs.reuse_pongo_run_id == ''
       - name: Build branded Pongo and matching loader artwork
+        if: inputs.reuse_pongo_run_id == ''
         run: |
           python boot/build-pongo.py --output out/boot/pongo.bin
           python boot/generate-logo.py --output out/boot/alpine-logo.h
@@ -129,6 +144,8 @@ jobs:
       - name: Build branded loader with the shared recipe
         run: |
           python boot/build-loader.py --logo-header out/boot/alpine-logo.h --output out/boot/m1n1.bin
+          mkdir -p boot/pongo/.work/source
+          tar -C boot/pongo/.work/source -xzf out/downloads/pongo-source.tar.gz ./src/drivers/framebuffer/alpine-logo.h
           python boot/m1n1/test-splash.py
           tar -C out -czf out/distro-boot.tar.gz boot
       - uses: actions/upload-artifact@v4
