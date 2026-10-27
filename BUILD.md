@@ -31,20 +31,30 @@ this repository; it is not an `orchard build` special case.
 
 ## Public inputs
 
-Build compatible loader, kernel, DTB, modules, Pongo and static BusyBox/Dropbear tools using the [hardware producers](https://github.com/OrchardLinux/hardware/blob/main/BUILD.md) and this image's [boot producers](boot/README.md). Verify component receipts before pinning. Keep kernel and module ABI names identical.
+Build the distro-branded loader/Pongo and static BusyBox/Dropbear tools using the
+[hardware producers](https://github.com/OrchardLinux/hardware/blob/main/BUILD.md)
+and this image's [boot producers](boot/README.md). Verify their receipts before pinning.
 
-The component copier takes exact explicit paths, refuses links/overwriting, and creates independent copies plus a per-file hash inventory:
+With the three kernel inputs omitted, the component copier asks the same Orchard
+kernel builder used by `./orchard build examples/minimal-boot`. Matching inputs
+reuse the shared kernel/DTB/module bundle without another Linux checkout or
+compilation. It then creates independent copies plus a per-file hash inventory,
+refusing links and existing output paths:
 
 ```sh
 uv run python pin_components.py \
   --loader /absolute/path/m1n1.bin --pongo /absolute/path/Pongo.bin \
-  --kernel /absolute/path/kernel/Image.gz --dtb /absolute/path/kernel/j71b.dtb \
-  --modules-dir /absolute/path/kernel/lib/modules \
   --busybox /absolute/path/busybox --dropbear /absolute/path/dropbear \
   --dropbearkey /absolute/path/dropbearkey --output out/components/public
 ```
 
-`kernel.release` must be beside `lib/` in the supplied kernel tree. This tool records selected input hashes; it is not a signature/trust service.
+For an explicit bundle, supply all three of `--kernel FILE`, `--dtb FILE` and
+`--modules-dir DIRECTORY`; partial overrides are rejected. `kernel.release` must
+be beside `lib/` in the supplied kernel tree. Explicit inputs bypass the cached
+builder, preserving CI's published-component path. Automatic resolution respects
+`XDG_CACHE_HOME` and `ORCHARD_CACHE_DIR`, just like RAM builds; no cache flag is needed.
+
+This tool records selected input hashes; it is not a signature/trust service.
 
 ## Base and coherent release
 

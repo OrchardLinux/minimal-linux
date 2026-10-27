@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy explicit public component inputs into an independent, hash-pinned directory.
+"""Pin public components, resolving omitted kernel inputs through Orchard's cache.
 
 This records operator-selected inputs, not a signature/trust verification service.
 Verify their supplied provenance/receipts before selecting them.
@@ -14,14 +14,38 @@ import tempfile
 from orchard_hardware.image.integrity import sha
 
 
+def resolve_kernel(args):
+    """Keep explicit kernel inputs; otherwise share the RAM builder's cache."""
+    supplied = [getattr(args, name) is not None for name in ('kernel', 'dtb', 'modules_dir')]
+    if any(supplied):
+        if not all(supplied):
+            raise ValueError('Provide --kernel, --dtb and --modules-dir together, or omit all three')
+        return
+    from orchard_cli.build import prepare_kernel
+    kernel = prepare_kernel(device='j71b')
+    args.kernel = kernel / 'Image.gz'
+    args.dtb = kernel / 'j71b.dtb'
+    args.modules_dir = kernel / 'lib/modules'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     roles = ('loader', 'pongo', 'kernel', 'dtb', 'busybox', 'dropbear', 'dropbearkey')
     for name in (*roles, 'modules-dir', 'output'):
-        parser.add_argument('--' + name, type=Path, required=True)
+        parser.add_argument('--' + name, type=Path,
+                            required=name not in ('kernel', 'dtb', 'modules-dir'))
     args = parser.parse_args()
     if args.output.exists() or args.output.is_symlink():
         parser.error('Choose a new component output directory')
+    # Validate supplied files before resolving a potentially expensive cache miss.
+    for name in roles:
+        path = getattr(args, name)
+        if path is not None and (path.is_symlink() or not path.is_file()):
+            parser.error(f'Explicit input must be a regular file: {path}')
+    try:
+        resolve_kernel(args)
+    except ValueError as error:
+        parser.error(str(error))
     sources = {name: getattr(args, name) for name in roles}
     sources['kernel_release'] = args.modules_dir.parent.parent / 'kernel.release'
     if any(p.is_symlink() or not p.is_file() for p in sources.values()):
