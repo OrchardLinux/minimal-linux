@@ -209,6 +209,7 @@ jobs:
       - name: Build the pinned Alpine base without a container daemon
         if: inputs.reuse_base_run_id == ''
         run: |
+          mkdir -p out/base
           sudo "$PWD/.venv/bin/python" build_base.py --native --output out/base/base.tar.gz
           tar -C out -czf out/alpine-base.tar.gz base
       - uses: actions/upload-artifact@v4
