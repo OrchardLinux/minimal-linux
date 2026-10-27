@@ -27,12 +27,14 @@ class CachedKernelTests(unittest.TestCase):
     def test_omitted_bundle_uses_generic_builder_and_preserves_branding(self):
         api = ModuleType('orchard_cli.build')
         api.prepare_kernel = Mock(return_value=Path('/shared/kernel'))
+        api.configured_device = Mock(return_value='new-board')
         args = self.args()
         with patch.dict(sys.modules, {'orchard_cli.build': api}):
             pin.resolve_kernel(args)
-        api.prepare_kernel.assert_called_once_with(device='j71b')
+        api.configured_device.assert_called_once_with(PROJECT)
+        api.prepare_kernel.assert_called_once_with(device='new-board')
         self.assertEqual(args.kernel, Path('/shared/kernel/Image.gz'))
-        self.assertEqual(args.dtb, Path('/shared/kernel/j71b.dtb'))
+        self.assertEqual(args.dtb, Path('/shared/kernel/new-board.dtb'))
         self.assertEqual(args.modules_dir, Path('/shared/kernel/lib/modules'))
         self.assertEqual(args.loader, Path('/branded/loader'))
         self.assertEqual(args.pongo, Path('/branded/pongo'))
@@ -78,7 +80,7 @@ class CachedKernelTests(unittest.TestCase):
             modules = kernel / 'lib/modules/test-release'
             modules.mkdir(parents=True)
             (modules / 'test.ko').write_bytes(b'module fixture')
-            for name in ('Image.gz', 'j71b.dtb', 'kernel.release'):
+            for name in ('Image.gz', 'new-board.dtb', 'kernel.release'):
                 (kernel / name).write_text(name)
             argv = ['pin_components']
             for name in ('loader', 'pongo', 'busybox', 'dropbear', 'dropbearkey'):
@@ -88,10 +90,13 @@ class CachedKernelTests(unittest.TestCase):
             argv += ['--output', str(root / 'pinned')]
             api = ModuleType('orchard_cli.build')
             api.prepare_kernel = Mock(return_value=kernel)
+            api.configured_device = Mock(return_value='new-board')
             with patch.object(sys, 'argv', argv), \
                     patch.dict(sys.modules, {'orchard_cli.build': api}):
                 pin.main()
-            api.prepare_kernel.assert_called_once_with(device='j71b')
+            api.configured_device.assert_called_once_with(PROJECT)
+            api.prepare_kernel.assert_called_once_with(device='new-board')
+            self.assertTrue((root / 'pinned/kernel/new-board.dtb').is_file())
             self.assertEqual((root / 'pinned/kernel/Image.gz').read_bytes(), b'Image.gz')
             (kernel / 'Image.gz').write_bytes(b'later change')
             self.assertEqual((root / 'pinned/kernel/Image.gz').read_bytes(), b'Image.gz')

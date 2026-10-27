@@ -29,6 +29,9 @@ For RAM-only development, `./orchard build examples/minimal-boot` uses generic
 CLI tooling and shared caches. Full Alpine image assembly below remains owned by
 this repository; it is not an `orchard build` special case.
 
+The root `orchard.toml` selects the default hardware recipe with `device = "j71b"`.
+RAM builds and automatic kernel resolution below use that setting.
+
 ## Public inputs
 
 Build the distro-branded loader/Pongo and static BusyBox/Dropbear tools using the

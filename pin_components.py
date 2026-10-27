@@ -21,11 +21,13 @@ def resolve_kernel(args):
         if not all(supplied):
             raise ValueError('Provide --kernel, --dtb and --modules-dir together, or omit all three')
         return
-    from orchard_cli.build import prepare_kernel
-    kernel = prepare_kernel(device='j71b')
+    from orchard_cli.build import configured_device, prepare_kernel
+    device = configured_device(Path(__file__).resolve().parent)
+    kernel = prepare_kernel(device=device)
     args.kernel = kernel / 'Image.gz'
-    args.dtb = kernel / 'j71b.dtb'
+    args.dtb = kernel / (device + '.dtb')
     args.modules_dir = kernel / 'lib/modules'
+    return device
 
 
 def main():
@@ -43,7 +45,7 @@ def main():
         if path is not None and (path.is_symlink() or not path.is_file()):
             parser.error(f'Explicit input must be a regular file: {path}')
     try:
-        resolve_kernel(args)
+        device = resolve_kernel(args) or 'j71b'
     except ValueError as error:
         parser.error(str(error))
     sources = {name: getattr(args, name) for name in roles}
@@ -59,7 +61,7 @@ def main():
         shutil.copytree(args.modules_dir, output / 'kernel/lib/modules')
         files = {}
         for name, source in sources.items():
-            relative = {'kernel': 'kernel/Image.gz', 'dtb': 'kernel/j71b.dtb',
+            relative = {'kernel': 'kernel/Image.gz', 'dtb': 'kernel/' + device + '.dtb',
                         'kernel_release': 'kernel/kernel.release'}.get(name, name)
             target = output / relative
             shutil.copyfile(source, target)
