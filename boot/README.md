@@ -10,7 +10,7 @@ Alpine artwork and display presentation are owned by this image. Shared hardware
 
 ## Build
 
-Requires Python, Git, `rsvg-convert`, ImageMagick, native make/C tools and Xcode with an iPhoneOS SDK for Pongo; Podman and the installed `orchard-hardware>=0.1.9,<0.2` producer/toolchain for m1n1.
+Requires Python, Git, `rsvg-convert`, ImageMagick, native make/C tools and Xcode with an iPhoneOS SDK for Pongo; Podman and the installed `orchard-hardware>=0.1.10,<0.2` producer/toolchain for m1n1.
 
 ```sh
 python boot/build-pongo.py --output out/branding/Pongo-alpine.bin

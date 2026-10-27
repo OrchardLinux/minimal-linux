@@ -155,7 +155,7 @@ def root_archive(base, base_receipt, components, output, version):
 def manifests(output, version, root):
     document = ('schema = 1\nkind = "orchard.install"\ndistro = "minimal-linux"\n'
                 'name = "Minimal Alpine"\nversion = ' + json.dumps(version) + '\n'
-                'device = "j71b"\nboot_method = "checkm8-pongo"\nmin_orchard = "0.1.5"\nprotocol = 1\n'
+                'device = "j71b"\nboot_method = "checkm8-pongo"\nmin_orchard = "0.1.10"\nprotocol = 1\n'
                 '\n[install]\ndefault_root = "/minimal"\n')
     for role, name in (('root', 'rootfs.tar.gz'), ('boot', 'recovery.bin'), ('pongo', 'pongo.bin')):
         p = output / name
