@@ -22,7 +22,7 @@ python -m pip install --only-binary=:all: -r \
   https://github.com/OrchardLinux/cli/releases/latest/download/requirements.txt
 ```
 
-Use `orchard-hardware>=0.1.9,<0.2`. For unpublished builds, install compatible CLI/hardware wheels by explicit paths instead. Container package downloads are separate from the IPSW/device-firmware cache.
+Use `orchard-hardware>=0.1.10,<0.2`. For unpublished builds, install compatible CLI/hardware wheels by explicit paths instead. Container package downloads are separate from the IPSW/device-firmware cache.
 
 ## Public inputs
 
