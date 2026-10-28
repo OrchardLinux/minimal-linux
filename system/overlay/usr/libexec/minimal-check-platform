@@ -1,13 +1,15 @@
 #!/bin/sh
-# Ready only on working hardware. No bring-up gates: the installed kernel and
-# device, the devices this system uses (kept from the recovery boot), and the
-# installed hardware files.
+# Ready only on the hardware this system was installed for. No bring-up gates:
+# the installed kernel and device, and the installed hardware files. Wi-Fi,
+# Bluetooth and touch are reported, not required: experimental boards may
+# lack some of them.
 set -eu
 config=/etc/orchard/release.json
 field() { python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$config" "$1"; }
 [ "$(uname -r)" = "$(field kernel_release)" ]
 [ "$(tr '\000' '\n' < /proc/device-tree/compatible | head -1)" = "apple,$(field profile)" ]
-[ -d /sys/class/net/wlan0 ]
-[ -d /sys/class/bluetooth/hci0 ]
-grep -q '^N: Name=".*Touchscreen"' /proc/bus/input/devices
+state() { if eval "$2"; then echo "$1: ready"; else echo "$1: missing"; fi; }
+state wifi '[ -d /sys/class/net/wlan0 ]'
+state bluetooth '[ -d /sys/class/bluetooth/hci0 ]'
+state touch 'grep -q "^N: Name=\".*Touchscreen\"" /proc/bus/input/devices'
 sha256sum -c /usr/share/ipadlinux/hardware.SHA256SUMS >/dev/null
