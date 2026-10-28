@@ -4,6 +4,10 @@ A small Alpine-based Linux image for Apple devices, demonstrating the Orchard re
 
 Currently supports iPad 6 Wi-Fi (`iPad7,5`, J71b), experimentally. Boot is tethered and requires a host computer. This is a development/reference image, not a general-purpose tablet distribution.
 
+The [P105 recovery composer](p105/README.md) adds a private ARMv7 RAM environment
+for the original iPad mini Wi-Fi. It works with hardware 0.1.11 and the native
+Orchard CLI adapter for tethered boot and handoff to an existing NFS desktop.
+
 ## Build and validate
 
 Follow [BUILD.md](BUILD.md) to set up a repository-local environment, build public components, assemble a coherent root/recovery release and run isolated tests. [Boot presentation](boot/README.md) describes the Alpine artwork and loader producers.
