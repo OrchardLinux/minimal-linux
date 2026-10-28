@@ -54,7 +54,7 @@ def validate_handoff(root):
         raise ValueError('Alpine PID 1 must be BusyBox init')
     for name in ('usr/bin/busybox', 'usr/bin/python3', 'usr/sbin/openrc',
                  'usr/sbin/openrc-run', 'usr/sbin/dropbear',
-                 'usr/libexec/j71b-check-platform',
+                 'usr/libexec/minimal-check-platform',
                  'usr/libexec/minimal-ready', 'usr/libexec/minimal-clear-splash',
                  'usr/libexec/minimal-console', 'usr/libexec/minimal-buttons',
                  'usr/libexec/minimal-screen-toggle', 'usr/libexec/minimal-brightness-display',

@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
 # Exercise the actual platform checker's checksum command with Alpine's tools,
 # without bypassing its real hardware preconditions in the shipped checker.
-checksum = Path('/usr/libexec/j71b-check-platform').read_text().splitlines()[-1]
+checksum = Path('/usr/libexec/minimal-check-platform').read_text().splitlines()[-1]
 assert checksum == 'sha256sum -c /usr/share/ipadlinux/hardware.SHA256SUMS >/dev/null'
 Path('/tmp/checksum-data').write_bytes(b'known data')
 Path('/tmp/checksums').write_text(hashlib.sha256(b'known data').hexdigest() + '  /tmp/checksum-data\n')

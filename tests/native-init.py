@@ -45,7 +45,7 @@ import json,subprocess
 from pathlib import Path
 assert str(Path('/proc/1/exe').readlink()) == '/usr/bin/busybox'
 assert Path('/proc/1/cmdline').read_bytes().split(b'\0')[0] in (b'/sbin/init', b'init')
-assert subprocess.run(['/usr/libexec/j71b-check-platform'], capture_output=True).returncode != 0
+assert subprocess.run(['/usr/libexec/minimal-check-platform'], capture_output=True).returncode != 0
 status=json.loads(subprocess.check_output(['/usr/bin/orchard-device','status']))['result']
 assert status['ready'] is False
 assert not Path('/run/minimal-linux-ready.json').exists()

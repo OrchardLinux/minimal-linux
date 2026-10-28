@@ -1,8 +1,8 @@
 #!/sbin/openrc-run
-description="Verify preserved J71b hardware state and installed payload"
+description="Verify the hardware and the installed hardware files"
 depend() { need orchard-session; }
 start() {
     ebegin "Checking Orchard hardware"
-    /usr/libexec/j71b-check-platform >/run/orchard-platform.log 2>&1
+    /usr/libexec/minimal-check-platform >/run/orchard-platform.log 2>&1
     eend $?
 }
