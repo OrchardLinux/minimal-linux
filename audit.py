@@ -95,7 +95,7 @@ def audit(directory):
             payload = stream.read(row['bytes'])
             assert len(payload) == row['bytes'] and hashlib.sha256(payload).hexdigest() == row['sha256']
             components[row['name']] = payload
-    profile = Path(orchard_hardware.__file__).parent / 'boot/initramfs/j71b/recovery/boot.json'
+    profile = Path(orchard_hardware.__file__).parent / 'boot/initramfs/recovery/boot.json'
     assert components['bootargs'] == json.loads(profile.read_text())['bootargs'].encode(), 'Recovery must preserve the tested standard boot profile'
     recovery = newc(gzip.decompress(components['initramfs']))
     for name in ('usr/lib/firmware/regulatory.db', 'usr/lib/firmware/regulatory.db.p7s'):
@@ -107,8 +107,7 @@ def audit(directory):
     for name, (data, mode, link) in entries.items():
         if data is not None and (name.startswith(('usr/libexec/orchard-j71b/', 'usr/lib/modules/',
                                                  'usr/lib/firmware/', 'usr/share/licenses/orchard-regdb/')) or
-                                 name in ('usr/bin/orchard-device', 'usr/libexec/j71b-check-platform',
-                                          'usr/libexec/j71b-charge-lease', 'etc/orchard/public.SHA256SUMS')):
+                                 name in ('usr/bin/orchard-device', 'etc/orchard/public.SHA256SUMS')):
             assert recovery[name][0] == data and stat.S_IMODE(recovery[name][1]) == mode
             shared += 1
     for data, mode in recovery.values():

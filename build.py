@@ -63,8 +63,8 @@ def root_archive(base, base_receipt, components, output, version):
     for name, target in (('start-ssh', 'usr/sbin/recovery-start-ssh'),
                          ('authorize-key', 'usr/sbin/authorize-key'),
                          ('capture-adt', 'usr/sbin/capture-adt')):
-        additions[target] = ((hardware / 'boot/initramfs/j71b/recovery' / name).read_bytes(), 0o755)
-    additions['etc/udhcpd.conf'] = ((hardware / 'boot/initramfs/j71b/recovery/udhcpd.conf').read_bytes(), 0o644)
+        additions[target] = ((hardware / 'boot/initramfs/recovery' / name).read_bytes(), 0o755)
+    additions['etc/udhcpd.conf'] = ((hardware / 'boot/initramfs/recovery/udhcpd.conf').read_bytes(), 0o644)
     additions.update({
         'etc/orchard/release.json': (json.dumps({'protocol': 1, 'release': version, 'profile': 'j71b',
             'kernel_release': kernel_release}).encode(), 0o644),
@@ -132,7 +132,7 @@ def root_archive(base, base_receipt, components, output, version):
                 member.mode, member.size = mode, len(data)
                 add(member, data)
             for service in ('orchard-session', 'orchard-platform', 'orchard-diagnostics',
-                            'orchard-charge', 'orchard-dhcp', 'orchard-buttons', 'orchard-ready'):
+                            'orchard-dhcp', 'orchard-buttons', 'orchard-ready'):
                 name = 'etc/runlevels/default/' + service
                 parents(name)
                 member = tarfile.TarInfo(name)
@@ -155,7 +155,7 @@ def root_archive(base, base_receipt, components, output, version):
 def manifests(output, version, root):
     document = ('schema = 1\nkind = "orchard.install"\ndistro = "minimal-linux"\n'
                 'name = "Minimal Alpine"\nversion = ' + json.dumps(version) + '\n'
-                'device = "j71b"\nboot_method = "checkm8-pongo"\nmin_orchard = "0.1.10"\nprotocol = 1\n'
+                'device = "j71b"\nboot_method = "checkm8-pongo"\nmin_orchard = "0.1.11"\nprotocol = 1\n'
                 '\n[install]\ndefault_root = "/minimal"\n')
     for role, name in (('root', 'rootfs.tar.gz'), ('boot', 'recovery.bin'), ('pongo', 'pongo.bin')):
         p = output / name

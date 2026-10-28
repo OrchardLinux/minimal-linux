@@ -19,7 +19,7 @@ PROC = Path('/proc')
 CONFIG = Path('/etc/orchard/release.json')
 INSTALLED = Path('/.orchard-install.json')
 STARTED = Path('/run/openrc/started')
-SERVICES = ('orchard-platform', 'orchard-diagnostics', 'orchard-charge', 'orchard-dhcp', 'orchard-buttons')
+SERVICES = ('orchard-platform', 'orchard-diagnostics', 'orchard-dhcp', 'orchard-buttons')
 
 
 def process(pid, executable):
@@ -39,7 +39,6 @@ def ready(*, ssh_revoked=False):
                     if not (ssh_revoked and name == 'orchard-diagnostics')) and
                 process(1, '/usr/bin/busybox') and
                 (ssh_revoked or process(record['diagnostics_pid'], DIAGNOSTICS_EXECUTABLE)) and
-                process(record['charge_pid'], '/usr/bin/busybox') and
                 process(record['dhcp_pid'], '/usr/libexec/minimal-linux/busybox') and
                 process(record['buttons_pid'], str(Path('/usr/bin/python3').resolve())) and
                 json.loads(INSTALLED.read_text())['release'] == record['release'])
@@ -55,7 +54,7 @@ def validate_handoff(root):
         raise ValueError('Alpine PID 1 must be BusyBox init')
     for name in ('usr/bin/busybox', 'usr/bin/python3', 'usr/sbin/openrc',
                  'usr/sbin/openrc-run', 'usr/sbin/dropbear',
-                 'usr/libexec/j71b-check-platform', 'usr/libexec/j71b-charge-lease',
+                 'usr/libexec/minimal-check-platform',
                  'usr/libexec/minimal-ready', 'usr/libexec/minimal-clear-splash',
                  'usr/libexec/minimal-console', 'usr/libexec/minimal-buttons',
                  'usr/libexec/minimal-screen-toggle', 'usr/libexec/minimal-brightness-display',
