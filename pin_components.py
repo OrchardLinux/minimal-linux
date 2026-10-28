@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy explicit public component inputs into an independent, hash-pinned directory.
+"""Pin public components, resolving omitted kernel inputs through Orchard's cache.
 
 This records operator-selected inputs, not a signature/trust verification service.
 Verify their supplied provenance/receipts before selecting them.
@@ -14,14 +14,40 @@ import tempfile
 from orchard_hardware.image.integrity import sha
 
 
+def resolve_kernel(args):
+    """Keep explicit kernel inputs; otherwise share the RAM builder's cache."""
+    supplied = [getattr(args, name) is not None for name in ('kernel', 'dtb', 'modules_dir')]
+    if any(supplied):
+        if not all(supplied):
+            raise ValueError('Provide --kernel, --dtb and --modules-dir together, or omit all three')
+        return
+    from orchard_cli.build import configured_device, prepare_kernel
+    device = configured_device(Path(__file__).resolve().parent)
+    kernel = prepare_kernel(device=device)
+    args.kernel = kernel / 'Image.gz'
+    args.dtb = kernel / (device + '.dtb')
+    args.modules_dir = kernel / 'lib/modules'
+    return device
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     roles = ('loader', 'pongo', 'kernel', 'dtb', 'busybox', 'dropbear', 'dropbearkey')
     for name in (*roles, 'modules-dir', 'output'):
-        parser.add_argument('--' + name, type=Path, required=True)
+        parser.add_argument('--' + name, type=Path,
+                            required=name not in ('kernel', 'dtb', 'modules-dir'))
     args = parser.parse_args()
     if args.output.exists() or args.output.is_symlink():
         parser.error('Choose a new component output directory')
+    # Validate supplied files before resolving a potentially expensive cache miss.
+    for name in roles:
+        path = getattr(args, name)
+        if path is not None and (path.is_symlink() or not path.is_file()):
+            parser.error(f'Explicit input must be a regular file: {path}')
+    try:
+        device = resolve_kernel(args) or 'j71b'
+    except ValueError as error:
+        parser.error(str(error))
     sources = {name: getattr(args, name) for name in roles}
     sources['kernel_release'] = args.modules_dir.parent.parent / 'kernel.release'
     if any(p.is_symlink() or not p.is_file() for p in sources.values()):
@@ -35,7 +61,7 @@ def main():
         shutil.copytree(args.modules_dir, output / 'kernel/lib/modules')
         files = {}
         for name, source in sources.items():
-            relative = {'kernel': 'kernel/Image.gz', 'dtb': 'kernel/j71b.dtb',
+            relative = {'kernel': 'kernel/Image.gz', 'dtb': 'kernel/' + device + '.dtb',
                         'kernel_release': 'kernel/kernel.release'}.get(name, name)
             target = output / relative
             shutil.copyfile(source, target)
