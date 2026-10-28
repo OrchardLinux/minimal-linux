@@ -16,7 +16,6 @@ while True:
         record = {'boot_id': policy.BOOT_ID.read_text().strip(),
                   'release': json.loads(policy.CONFIG.read_text())['release'],
                   'diagnostics_pid': int(Path('/run/recovery/dropbear.pid').read_text()),
-                  'charge_pid': int(Path('/run/orchard-charge.pid').read_text()),
                   'dhcp_pid': int(Path('/run/orchard-dhcp.pid').read_text()),
                   'buttons_pid': int(Path('/run/orchard-buttons.pid').read_text())}
         temporary = policy.RECORD.with_suffix('.pending')

@@ -1,6 +1,6 @@
 #!/sbin/openrc-run
 description="Publish headless readiness only after required OpenRC services"
-depend() { need orchard-platform orchard-diagnostics orchard-charge orchard-dhcp orchard-buttons; }
+depend() { need orchard-platform orchard-diagnostics orchard-dhcp orchard-buttons; }
 start() {
     ebegin "Checking minimal Linux readiness"
     /usr/libexec/minimal-ready

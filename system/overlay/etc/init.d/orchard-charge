@@ -1,6 +1,0 @@
-#!/sbin/openrc-run
-description="Maintain the tested hardware charging lease"
-command="/usr/libexec/j71b-charge-lease"
-command_background=true
-pidfile="/run/orchard-charge.pid"
-depend() { need orchard-platform; }

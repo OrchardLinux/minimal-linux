@@ -49,7 +49,6 @@ assert subprocess.run(['/usr/libexec/j71b-check-platform'], capture_output=True)
 status=json.loads(subprocess.check_output(['/usr/bin/orchard-device','status']))['result']
 assert status['ready'] is False
 assert not Path('/run/minimal-linux-ready.json').exists()
-assert not Path('/run/openrc/started/orchard-charge').exists()
 assert not Path('/run/openrc/started/orchard-ready').exists()
 print(json.dumps({'busybox_pid1':True,'openrc_booted':True,'diagnostics_started':True,
  'dhcp_started':True,'dhcp_process_alive_and_udp67_bound':True,'hardware_gate_failed_as_expected':True,'ready':False,

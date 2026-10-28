@@ -132,7 +132,7 @@ def root_archive(base, base_receipt, components, output, version):
                 member.mode, member.size = mode, len(data)
                 add(member, data)
             for service in ('orchard-session', 'orchard-platform', 'orchard-diagnostics',
-                            'orchard-charge', 'orchard-dhcp', 'orchard-buttons', 'orchard-ready'):
+                            'orchard-dhcp', 'orchard-buttons', 'orchard-ready'):
                 name = 'etc/runlevels/default/' + service
                 parents(name)
                 member = tarfile.TarInfo(name)

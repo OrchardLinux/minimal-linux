@@ -108,7 +108,7 @@ def audit(directory):
         if data is not None and (name.startswith(('usr/libexec/orchard-j71b/', 'usr/lib/modules/',
                                                  'usr/lib/firmware/', 'usr/share/licenses/orchard-regdb/')) or
                                  name in ('usr/bin/orchard-device', 'usr/libexec/j71b-check-platform',
-                                          'usr/libexec/j71b-charge-lease', 'etc/orchard/public.SHA256SUMS')):
+                                          'etc/orchard/public.SHA256SUMS')):
             assert recovery[name][0] == data and stat.S_IMODE(recovery[name][1]) == mode
             shared += 1
     for data, mode in recovery.values():
