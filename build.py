@@ -63,8 +63,8 @@ def root_archive(base, base_receipt, components, output, version):
     for name, target in (('start-ssh', 'usr/sbin/recovery-start-ssh'),
                          ('authorize-key', 'usr/sbin/authorize-key'),
                          ('capture-adt', 'usr/sbin/capture-adt')):
-        additions[target] = ((hardware / 'boot/initramfs/j71b/recovery' / name).read_bytes(), 0o755)
-    additions['etc/udhcpd.conf'] = ((hardware / 'boot/initramfs/j71b/recovery/udhcpd.conf').read_bytes(), 0o644)
+        additions[target] = ((hardware / 'boot/initramfs/recovery' / name).read_bytes(), 0o755)
+    additions['etc/udhcpd.conf'] = ((hardware / 'boot/initramfs/recovery/udhcpd.conf').read_bytes(), 0o644)
     additions.update({
         'etc/orchard/release.json': (json.dumps({'protocol': 1, 'release': version, 'profile': 'j71b',
             'kernel_release': kernel_release}).encode(), 0o644),
