@@ -10,7 +10,6 @@ import orchard_hardware
 
 HERE = Path(__file__).resolve().parent
 SRC = HERE / '.work/j71b/source/src'
-assert (SRC / 'alpine-logo.h').read_bytes() == (HERE.parent / 'pongo/.work/source/src/drivers/framebuffer/alpine-logo.h').read_bytes()
 source = (SRC / 'fb.c').read_text()
 start = source.index('    /* Match Pongo\'s visible geometry; publish the complete frame only once. */')
 renderer = source[start:source.index('\n#else', start)]

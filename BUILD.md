@@ -2,7 +2,7 @@
 
 ## GitHub Actions
 
-`.github/workflows/build.yml` runs unit tests on pull requests and `main`. Version tags (`v*`) and manual dispatches build the image: macOS builds Pongo and its matching loader artwork, Linux ARM64 builds m1n1, and Linux ARM64 extracts the digest-pinned Alpine OCI base with `skopeo`/`umoci` and runs `system/install-base` in a native chroot. This is the same install recipe used by the local Containerfile, without Podman or a container daemon.
+`.github/workflows/build.yml` runs unit tests on pull requests and `main`. Version tags (`v*`) and manual dispatches build the image: macOS renders the loader artwork, Linux ARM64 builds m1n1, and Linux ARM64 extracts the digest-pinned Alpine OCI base with `skopeo`/`umoci` and runs `system/install-base` in a native chroot. This is the same install recipe used by the local Containerfile, without Podman or a container daemon.
 
 Select published hardware and CLI tags in manual dispatch; tag builds use the explicit defaults in the workflow. `ci/dependencies` installs their hashed wheel pair, verifies the hardware bundle and exposes its compiled kernel/modules/tools. No sibling hardware source checkout is used.
 
@@ -34,9 +34,11 @@ RAM builds and automatic kernel resolution below use that setting.
 
 ## Public inputs
 
-Build the distro-branded loader/Pongo and static BusyBox/Dropbear tools using the
+Build the distro-branded loader and static BusyBox/Dropbear tools using the
 [hardware producers](https://github.com/OrchardLinux/hardware/blob/main/BUILD.md)
 and this image's [boot producers](boot/README.md). Verify their receipts before pinning.
+Pongo is not built here: use hardware's one Pongo, `quiet/pongo.bin` from the
+hardware component bundle (black screen; the Alpine logo appears with m1n1).
 
 With the three kernel inputs omitted, the component copier asks the same Orchard
 kernel builder used by `./orchard build examples/minimal-boot`. Matching inputs
@@ -46,7 +48,7 @@ refusing links and existing output paths:
 
 ```sh
 uv run python pin_components.py \
-  --loader /absolute/path/m1n1.bin --pongo /absolute/path/Pongo.bin \
+  --loader /absolute/path/m1n1.bin --pongo /absolute/path/quiet/pongo.bin \
   --busybox /absolute/path/busybox --dropbear /absolute/path/dropbear \
   --dropbearkey /absolute/path/dropbearkey --output out/components/public
 ```

@@ -23,8 +23,8 @@ on:
       reuse_base_run_id:
         description: Exact prior run supplying the unchanged Alpine base
         required: false
-      reuse_pongo_run_id:
-        description: Exact prior run supplying unchanged branded Pongo and artwork
+      reuse_artwork_run_id:
+        description: Exact prior run supplying unchanged loader artwork
         required: false
       reuse_loader_run_id:
         description: Exact prior run supplying the tested unchanged loader
@@ -66,49 +66,45 @@ jobs:
           github-token: ${{ github.token }}
       - run: bash ci/dependencies --wheels-only
       - run: .venv/bin/python -m unittest discover -s tests -v
-  pongo:
+  # Pongo is not built here: releases ship hardware's one Pongo (quiet/pongo.bin).
+  artwork:
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
-      - name: Reuse the unchanged branded Pongo and artwork
-        if: inputs.reuse_pongo_run_id != ''
+      - name: Reuse the unchanged loader artwork
+        if: inputs.reuse_artwork_run_id != ''
         uses: actions/download-artifact@v4
         with:
           name: minimal-boot-inputs
           path: out
-          run-id: ${{ inputs.reuse_pongo_run_id }}
+          run-id: ${{ inputs.reuse_artwork_run_id }}
           github-token: ${{ github.token }}
       - uses: actions/checkout@v4
-        if: inputs.reuse_pongo_run_id == ''
+        if: inputs.reuse_artwork_run_id == ''
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
-        if: inputs.reuse_pongo_run_id == ''
+        if: inputs.reuse_artwork_run_id == ''
         with:
           python-version: '3.12'
       - run: brew install imagemagick librsvg
-        if: inputs.reuse_pongo_run_id == ''
-      - name: Build branded Pongo and matching loader artwork
-        if: inputs.reuse_pongo_run_id == ''
+        if: inputs.reuse_artwork_run_id == ''
+      - name: Generate the loader artwork
+        if: inputs.reuse_artwork_run_id == ''
         run: |
-          python boot/build-pongo.py --output out/boot/pongo.bin
           python boot/generate-logo.py --output out/boot/alpine-logo.h
-          python boot/pongo/test-renderer.py
           tar -C out -czf out/boot-inputs.tar.gz boot
-          tar -C boot/pongo/.work/source --exclude=.git -czf out/pongo-source.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
           name: minimal-boot-inputs
-          path: |
-            out/boot-inputs.tar.gz
-            out/pongo-source.tar.gz
+          path: out/boot-inputs.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 2
   loader:
-    needs: pongo
+    needs: artwork
     runs-on: ubuntu-24.04-arm
     container: debian:bookworm
     timeout-minutes: 90
@@ -160,8 +156,6 @@ jobs:
         if: inputs.reuse_loader_run_id == ''
         run: |
           python boot/build-loader.py --logo-header out/boot/alpine-logo.h --output out/boot/m1n1.bin
-          mkdir -p boot/pongo/.work/source
-          tar -C boot/pongo/.work/source -xzf out/downloads/pongo-source.tar.gz ./src/drivers/framebuffer/alpine-logo.h
           python boot/m1n1/test-splash.py
           tar -C out -czf out/distro-boot.tar.gz boot
       - uses: actions/upload-artifact@v4
@@ -220,7 +214,7 @@ jobs:
           if-no-files-found: error
           retention-days: 2
   assets:
-    needs: [test, pongo, loader, base]
+    needs: [test, artwork, loader, base]
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -279,7 +273,7 @@ jobs:
           VERSION="preview-$RUN_ID"
           TAG="v$VERSION"
           if [[ "$REF_TYPE" == tag ]]; then TAG="$REF_NAME"; VERSION="${TAG#v}"; fi
-          python pin_components.py --loader out/boot/m1n1.bin --pongo out/boot/pongo.bin \
+          python pin_components.py --loader out/boot/m1n1.bin --pongo out/components/quiet/pongo.bin \
             --kernel out/components/kernel/Image.gz --dtb out/components/kernel/j71b.dtb \
             --modules-dir out/components/kernel/lib/modules --busybox out/components/boot/busybox \
             --dropbear out/components/boot/dropbear --dropbearkey out/components/boot/dropbearkey \
@@ -291,7 +285,6 @@ jobs:
           python -m orchard_hardware.image.publish --distro minimal-linux --tag "$TAG" \
             --release-dir out/release --output out/publication
           cp out/release/rootfs.json out/release/build-receipt.json out/base/* out/publication/
-          cp out/downloads/pongo-source.tar.gz out/publication/
           git archive --format=tar.gz -o out/publication/minimal-linux-source.tar.gz HEAD
           (cd out/publication && sha256sum ./* > ../SHA256SUMS && mv ../SHA256SUMS .)
       - name: Attest public build
