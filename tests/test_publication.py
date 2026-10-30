@@ -3,10 +3,7 @@ import hashlib
 from pathlib import Path
 import tempfile
 import unittest
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 from orchard_hardware.image.publish import publish
 

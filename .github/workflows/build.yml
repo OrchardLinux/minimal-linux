@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        python: ['3.9', '3.12']
+        python: ['3.11', '3.14']
     steps:
       - uses: actions/checkout@v4
         with:
@@ -88,7 +88,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: inputs.reuse_artwork_run_id == ''
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: brew install imagemagick librsvg
         if: inputs.reuse_artwork_run_id == ''
       - name: Generate the loader artwork
@@ -186,7 +186,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: inputs.reuse_base_run_id == ''
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: sudo apt-get update && sudo apt-get install -y skopeo umoci
         if: inputs.reuse_base_run_id == ''
       - name: Reuse the tested first-release wheel pair
@@ -228,7 +228,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - uses: actions/download-artifact@v4
         with:
           pattern: minimal-*
