@@ -6,42 +6,35 @@ Currently supports iPad 6 Wi-Fi (`iPad7,5`, J71b), experimentally. Boot is tethe
 
 ## Local development
 
-CLI and hardware sources are Git submodules in `cli/` and `hardware/`.
-Install [uv](https://docs.astral.sh/uv/), then use the repo-local launcher:
+This repository is a distribution on top of
+[orchard](https://github.com/OrchardLinux/orchard), which holds the hardware support
+and the `orchard` tool. Put orchard's launcher on your PATH once (see its
+[README](https://github.com/OrchardLinux/orchard#develop)); here it runs orchard's
+`main` by default, or the checkout a gitignored `orchard.local.toml` names
+(`orchard = "../orchard-mine"`, plus `device = "j71b"` for your board). Run this
+repository's producers and tests in that orchard's environment:
 
 ```sh
-./orchard build examples/minimal-boot
-./orchard run examples/minimal-boot
+orchard python -m unittest discover -s tests
 ```
 
-`./orchard` initializes missing submodules and manages both Python packages as
-editable dependencies automatically. No separate CLI/hardware installation or
-virtual-environment activation is needed. The checkout's CLI takes precedence
-over a globally installed Orchard; existing submodule edits are never reset.
-
-`examples/` is just an organizational choice: `use_cases/my-test` or an unrelated
-absolute directory works too. A RAM build packages that directory's `init` and
-optional `rootfs/` content. See [minimal-boot](examples/minimal-boot/) and
-[charger-001](examples/charger-001/) for host requirements and content examples.
-
-Upstream Git objects and immutable components share the normal Orchard cache
-across checkouts. Editable kernel source and compiler output remain checkout-local.
-These examples do not build the Alpine distro image; its assembly stays in the
-existing producers documented below.
+RAM experiments and device bring-up happen in orchard itself, with its
+[examples](https://github.com/OrchardLinux/orchard/tree/main/examples). This
+repository builds the Alpine image; its assembly is documented below.
 
 ## Build and validate
 
 Follow [BUILD.md](BUILD.md) to set up a repository-local environment, build public components, assemble a coherent root/recovery release and run isolated tests. [Boot presentation](boot/README.md) describes the Alpine artwork and loader producers.
 
-Distro builds use the active `orchard-hardware` package and explicit component artifacts. In the local workspace that package comes from the editable `hardware/` submodule. Private firmware, calibration, device identity and diagnostic keys are not included in public images.
+Distro builds use the orchard checkout `orchard` runs and explicit component artifacts. Private firmware, calibration, device identity and diagnostic keys are not included in public images.
 
 ## Install a local build
 
-Use the [Orchard CLI](https://github.com/OrchardLinux/cli) with a compatible device and a prepared Linux-data partition. Back up the device first; storage changes can permanently erase data.
+Use [orchard](https://github.com/OrchardLinux/orchard) with a compatible device and a prepared Linux-data partition. Back up the device first; storage changes can permanently erase data.
 
 ```sh
-./orchard resolve out/releases/YOUR_NEW_VERSION/index.toml
-./orchard install out/releases/YOUR_NEW_VERSION/index.toml
+orchard resolve out/releases/YOUR_NEW_VERSION/index.toml
+orchard install out/releases/YOUR_NEW_VERSION/index.toml
 ```
 
 The CLI asks before installation or formatting. Do not interrupt a confirmed storage operation. Building or testing in a container does not qualify a release on hardware.

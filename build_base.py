@@ -12,7 +12,7 @@ import stat
 import subprocess
 import tempfile
 
-from orchard_hardware.image.integrity import sha
+from orchard.image.integrity import sha
 
 PROJECT = Path(__file__).resolve().parent
 

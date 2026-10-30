@@ -3,7 +3,6 @@
 import argparse
 import gzip
 import hashlib
-from importlib.metadata import version as package_version
 import io
 import json
 import os
@@ -14,9 +13,9 @@ import sys
 import tarfile
 import tempfile
 
-from orchard_hardware.image.integrity import sha
-from orchard_hardware.image.runtime import files as runtime_files
-import orchard_hardware
+from orchard.image.integrity import sha
+from orchard.image.runtime import files as runtime_files
+from orchard.hardware import ROOT as HARDWARE, revision as orchard_revision
 
 PROJECT = Path(__file__).resolve().parent
 POLICY = PROJECT / 'image/j71b'
@@ -56,7 +55,7 @@ def root_archive(base, base_receipt, components, output, version):
         raise ValueError('Alpine base differs from receipt')
     kernel_release, additions = runtime_files(components['modules_dir'], POLICY)
     additions.update(overlay())
-    hardware = Path(orchard_hardware.__file__).parent
+    hardware = HARDWARE
     for source, target in (('busybox', 'usr/libexec/minimal-linux/busybox'),
                            ('dropbear', 'usr/sbin/dropbear'), ('dropbearkey', 'usr/bin/dropbearkey')):
         additions[target] = (components[source].read_bytes(), 0o755)
@@ -184,7 +183,7 @@ def main():
         output = Path(temp) / 'release'
         output.mkdir()
         root = root_archive(args.base, args.base_receipt, components, output, args.version)
-        command = [sys.executable, '-m', 'orchard_hardware.image.recovery']
+        command = [sys.executable, '-m', 'orchard.image.recovery']
         for name in ('base', 'base_receipt'):
             command += ['--' + name.replace('_', '-'), str(getattr(args, name))]
         for name in ('loader', 'kernel', 'dtb', 'busybox', 'dropbear', 'dropbearkey', 'modules_dir'):
@@ -199,7 +198,7 @@ def main():
                       for name, row in inputs['files'].items()},
             'modules': {'files': inputs['modules']['files']}}
         (output / 'build-receipt.json').write_text(json.dumps({'distro': 'minimal-linux',
-            'version': args.version, 'hardware_package': package_version('orchard-hardware'),
+            'version': args.version, 'orchard': orchard_revision(),
             'base': json.loads(args.base_receipt.read_text()), 'inputs': public_inputs,
             'physical_device_operations_performed': False, 'hardware_validated': False}, indent=2) + '\n')
         shutil.rmtree(output / '.work', ignore_errors=False)

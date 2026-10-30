@@ -9,8 +9,8 @@ import stat
 import struct
 import tarfile
 
-from orchard_hardware.image.integrity import sha
-import orchard_hardware
+from orchard.image.integrity import sha
+from orchard.hardware import ROOT as HARDWARE
 
 
 def newc(data):
@@ -95,7 +95,7 @@ def audit(directory):
             payload = stream.read(row['bytes'])
             assert len(payload) == row['bytes'] and hashlib.sha256(payload).hexdigest() == row['sha256']
             components[row['name']] = payload
-    profile = Path(orchard_hardware.__file__).parent / 'boot/initramfs/recovery/boot.json'
+    profile = HARDWARE / 'boot/initramfs/recovery/boot.json'
     assert components['bootargs'] == json.loads(profile.read_text())['bootargs'].encode(), 'Recovery must preserve the tested standard boot profile'
     recovery = newc(gzip.decompress(components['initramfs']))
     for name in ('usr/lib/firmware/regulatory.db', 'usr/lib/firmware/regulatory.db.p7s'):
