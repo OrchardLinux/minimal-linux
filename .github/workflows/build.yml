@@ -9,7 +9,7 @@ on:
       hardware_tag:
         description: Published orchard release supplying the compiled components
         required: true
-        default: v0.1.10
+        default: v0.2.0
       hardware_run_id:
         description: Optional exact hardware run supplying first-release components
         required: false
@@ -26,7 +26,7 @@ permissions:
   contents: read
   actions: read
 env:
-  HARDWARE_TAG: ${{ inputs.hardware_tag || 'v0.1.10' }}
+  HARDWARE_TAG: ${{ inputs.hardware_tag || 'v0.2.0' }}
   HARDWARE_ARTIFACT_DIR: ${{ inputs.hardware_run_id != '' && 'out/downloads/hardware' || '' }}
 jobs:
   test:
@@ -46,7 +46,10 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: '[[ "$TAG" =~ ^v[A-Za-z0-9][A-Za-z0-9._-]*$ ]]'
+      # Tests follow orchard main; builds use the pinned orchard release (ci/dependencies).
       - run: bash ci/dependencies --tools-only
+        env:
+          ORCHARD_REF: main
       - run: .venv/bin/python -m unittest discover -s tests -v
   # Pongo is not built here: releases ship hardware's one Pongo (quiet/pongo.bin).
   artwork:
@@ -227,15 +230,20 @@ jobs:
           VERSION="preview-$RUN_ID"
           TAG="v$VERSION"
           if [[ "$REF_TYPE" == tag ]]; then TAG="$REF_NAME"; VERSION="${TAG#v}"; fi
-          python pin_components.py --loader out/boot/m1n1.bin --pongo out/components/quiet/pongo.bin \
-            --kernel out/components/kernel/Image.gz --dtb out/components/kernel/j71b.dtb \
-            --modules-dir out/components/kernel/lib/modules --busybox out/components/boot/busybox \
-            --dropbear out/components/boot/dropbear --dropbearkey out/components/boot/dropbearkey \
-            --output out/inputs
+          # Every platform's kernel from orchard's bundles; the shared tools are in each.
+          kernels=()
+          for bundle in out/platforms/*/components; do
+            kernels+=(--kernel-dir "$(basename "$(dirname "$bundle")")=$bundle/kernel")
+          done
+          tools=out/platforms/apple-16k/components
+          python pin_components.py --loader out/boot/m1n1.bin --pongo "$tools/quiet/pongo.bin" \
+            --busybox "$tools/boot/busybox" --dropbear "$tools/boot/dropbear" \
+            --dropbearkey "$tools/boot/dropbearkey" --wpa-supplicant "$tools/boot/wpa_supplicant" \
+            --wpa-cli "$tools/boot/wpa_cli" --iw "$tools/boot/iw" --output out/inputs
           python build.py --base out/base/base.tar.gz --base-receipt out/base/base.tar.gz.json \
-            --inputs out/inputs/inputs.json --version "$VERSION" --output out/release
+            --inputs out/inputs/inputs.json --version "$VERSION" --output out/release "${kernels[@]}"
           python audit.py out/release
-          orchard resolve out/release/index.toml
+          python -m orchard.manifests --verify-local out/release/index.toml
           python -m orchard.image.publish --distro minimal-linux --tag "$TAG" \
             --release-dir out/release --output out/publication
           cp out/release/rootfs.json out/release/build-receipt.json out/base/* out/publication/

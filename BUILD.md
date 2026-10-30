@@ -33,24 +33,21 @@ and this image's [boot producers](boot/README.md). Verify their receipts before 
 Pongo is not built here: use orchard's one Pongo, `quiet/pongo.bin` from the
 orchard component bundle (black screen; the Alpine logo appears with m1n1).
 
-With the three kernel inputs omitted, the component copier asks the same Orchard
-kernel builder used by `orchard build` in orchard's examples. Matching inputs
-reuse the shared kernel/DTB/module bundle without another Linux checkout or
-compilation. It then creates independent copies plus a per-file hash inventory,
-refusing links and existing output paths:
+The component copier pins them as independent copies with a per-file hash
+inventory, refusing links and existing output paths. Kernels are not pinned
+there: a release covers every platform, and `build.py` builds or reuses each
+platform's kernel through orchard's shared cache (the same builder as `orchard
+build` in orchard's examples), or takes `--kernel-dir PLATFORM=DIRECTORY` per
+platform (CI, orchard's per-platform component bundles). `--platform PLATFORM`
+builds fewer platforms, for development only.
 
 ```sh
 orchard python pin_components.py \
   --loader /absolute/path/m1n1.bin --pongo /absolute/path/quiet/pongo.bin \
   --busybox /absolute/path/busybox --dropbear /absolute/path/dropbear \
-  --dropbearkey /absolute/path/dropbearkey --output out/components/public
+  --dropbearkey /absolute/path/dropbearkey --wpa-supplicant /absolute/path/wpa_supplicant \
+  --wpa-cli /absolute/path/wpa_cli --iw /absolute/path/iw --output out/components/public
 ```
-
-For an explicit bundle, supply all three of `--kernel FILE`, `--dtb FILE` and
-`--modules-dir DIRECTORY`; partial overrides are rejected. `kernel.release` must
-be beside `lib/` in the supplied kernel tree. Explicit inputs bypass the cached
-builder, preserving CI's published-component path. Automatic resolution respects
-`XDG_CACHE_HOME` and `ORCHARD_CACHE_DIR`, just like RAM builds; no cache flag is needed.
 
 This tool records selected input hashes; it is not a signature/trust service.
 
@@ -66,12 +63,12 @@ orchard python build.py \
   --inputs out/components/public/inputs.json \
   --version YOUR_NEW_VERSION --output out/releases/YOUR_NEW_VERSION
 orchard python audit.py out/releases/YOUR_NEW_VERSION
-orchard resolve out/releases/YOUR_NEW_VERSION/index.toml
+orchard python -m orchard.manifests --verify-local out/releases/YOUR_NEW_VERSION/index.toml
 ```
 
 Use fresh output paths; producers refuse overwriting. The official Alpine OCI digest is pinned in `system/Containerfile`; APK repositories retain signature checking. The base records package versions in `/etc/alpine-packages.lock`. Its archive hash and all selected hardware hashes are recorded separately from the install contract. The APK mirror is not an immutable snapshot: future base rebuilds may select newer signed package revisions and must get new receipts.
 
-The producer composes the installed hardware resources with Alpine-owned policy, creates a public gzip root, seals a fresh recovery to its receipt, and emits a direct-artifact target manifest plus pinned distro index. Public build receipts omit local machine paths. No private firmware, SSH keys, ADT or machine IDs are embedded.
+The producer composes Alpine-owned policy into one public gzip root for every platform (no kernel or modules: orchard's platform layer brings those at install, and orchard writes the boot entry), seals a recovery per platform to the root's receipt, adds orchard's layer per platform, and emits `release.toml` plus the index that pins it. Public build receipts omit local machine paths. No private firmware, SSH keys, ADT or machine IDs are embedded.
 
 ## Native isolated checks
 

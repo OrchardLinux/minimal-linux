@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 
-sys.path.insert(0, '/usr/libexec/orchard-j71b')
+sys.path.insert(0, '/usr/libexec/minimal-linux')
 import image_policy as policy
 import ssh_access
 
@@ -84,7 +84,7 @@ with tempfile.TemporaryDirectory() as tmp:
     try:
         assert other.stdout.readline().strip() == 'opened'
         # Test the teardown primitive directly, WITHOUT faking a successful hardware gate.
-        code = "import sys,json;sys.path.insert(0,'/usr/libexec/orchard-j71b');import ssh_access,image_policy;print(json.dumps(ssh_access.revoke("+repr(release)+",image_policy.DIAGNOSTICS_EXECUTABLE,image_policy.stop_diagnostics)))"
+        code = "import sys,json;sys.path.insert(0,'/usr/libexec/minimal-linux');import ssh_access,image_policy;print(json.dumps(ssh_access.revoke("+repr(release)+",image_policy.DIAGNOSTICS_EXECUTABLE,image_policy.stop_diagnostics)))"
         result = json.loads(run(*ssh, 'python3 -c '+shlex.quote(code)).stdout)
         assert result['ssh_access'] == 'revoked'
         assert other.wait(timeout=5) != 0

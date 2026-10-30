@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 
-sys.path.insert(0, '/usr/libexec/orchard-j71b')
+sys.path.insert(0, '/usr/libexec/minimal-linux')
 from archive import extract
 import image_policy as policy
 

@@ -17,19 +17,13 @@ class Components(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.modules = self.root / 'source/kernel/lib/modules/test-release'
-        self.modules.mkdir(parents=True)
-        (self.modules / 'test.ko').write_bytes(b'module fixture')
-        (self.root / 'source/kernel/kernel.release').write_text('test-release\n')
+        (self.root / 'source').mkdir()
         self.args = [sys.executable, str(PROJECT / 'pin_components.py')]
-        for role in ('loader', 'pongo', 'kernel', 'dtb', 'busybox', 'dropbear', 'dropbearkey'):
+        for role in ('loader', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw'):
             p = self.root / 'source' / role
-            # The kernel *file* is separate from the fixture kernel directory.
-            if role == 'kernel':
-                p = self.root / 'source/Image.gz'
             p.write_bytes(role.encode())
             self.args += ['--' + role, str(p)]
-        self.args += ['--modules-dir', str(self.modules.parent), '--output', str(self.root / 'copied')]
+        self.args += ['--output', str(self.root / 'copied')]
 
     def run_pin(self):
         return subprocess.run(self.args, capture_output=True, text=True)

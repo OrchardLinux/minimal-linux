@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('minimal_policy', HERE / 'image/j71b/image_policy.py')
+spec = importlib.util.spec_from_file_location('minimal_policy', HERE / 'system/image_policy.py')
 policy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(policy)
 

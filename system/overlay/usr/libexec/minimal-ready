@@ -7,7 +7,7 @@ import sys
 import time
 import subprocess
 
-sys.path.insert(0, '/usr/libexec/orchard-j71b')
+sys.path.insert(0, '/usr/libexec/minimal-linux')
 import image_policy as policy
 
 end = time.monotonic() + 15
