@@ -6,3 +6,5 @@ dist/
 __pycache__/
 *.py[cod]
 .DS_Store
+orchard.local.toml
+.orchard/

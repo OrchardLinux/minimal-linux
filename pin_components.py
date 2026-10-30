@@ -11,7 +11,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from orchard_hardware.image.integrity import sha
+from orchard.image.integrity import sha
 
 
 def resolve_kernel(args):
@@ -21,8 +21,9 @@ def resolve_kernel(args):
         if not all(supplied):
             raise ValueError('Provide --kernel, --dtb and --modules-dir together, or omit all three')
         return
-    from orchard_cli.build import configured_device, prepare_kernel
-    device = configured_device(Path(__file__).resolve().parent)
+    from orchard.build import prepare_kernel
+    # This image is J71b's (build.py's profile); the device layer generalizes it.
+    device = 'j71b'
     kernel = prepare_kernel(device=device)
     args.kernel = kernel / 'Image.gz'
     args.dtb = kernel / (device + '.dtb')

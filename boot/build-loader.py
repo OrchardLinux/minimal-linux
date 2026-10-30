@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import orchard_hardware
+from orchard.hardware import ROOT as HARDWARE
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
         if not args.logo_header:
             subprocess.run([sys.executable, str(here / 'generate-logo.py'),
                             '--output', str(header)], check=True)
-        command = [str(Path(orchard_hardware.__file__).parent / 'boot/m1n1/build'),
+        command = [str(HARDWARE / 'boot/m1n1/build'),
                    'j71b', '--output', str(args.output), '--work-dir',
                    str(here / 'm1n1/.work/j71b'), '--extra-patch',
                    str(here / 'm1n1/patches/0002-alpine-splash.patch'),

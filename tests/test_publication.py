@@ -5,7 +5,7 @@ import tempfile
 import unittest
 import tomllib
 
-from orchard_hardware.image.publish import publish
+from orchard.image.publish import publish
 
 
 def pin(path):

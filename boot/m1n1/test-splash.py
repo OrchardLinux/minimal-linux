@@ -6,7 +6,7 @@ Requires .work/j71b/source with patch and generated header. Not a hardware test.
 from pathlib import Path
 import subprocess
 import tempfile
-import orchard_hardware
+from orchard.hardware import ROOT as HARDWARE
 
 HERE = Path(__file__).resolve().parent
 SRC = HERE / '.work/j71b/source/src'
