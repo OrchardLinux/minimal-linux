@@ -36,16 +36,8 @@ with tempfile.TemporaryDirectory() as tmp:
     else:
         raise AssertionError('setuid payload accepted')
 
-# Exercise the actual platform checker's checksum command with Alpine's tools,
-# without bypassing its real hardware preconditions in the shipped checker.
-checksum = Path('/usr/libexec/minimal-check-platform').read_text().splitlines()[-1]
-assert checksum == 'sha256sum -c /usr/share/ipadlinux/hardware.SHA256SUMS >/dev/null'
-Path('/tmp/checksum-data').write_bytes(b'known data')
-Path('/tmp/checksums').write_text(hashlib.sha256(b'known data').hexdigest() + '  /tmp/checksum-data\n')
-check = checksum.replace('/usr/share/ipadlinux/hardware.SHA256SUMS', '/tmp/checksums')
-subprocess.run(['sh', '-c', check], check=True)
-Path('/tmp/checksum-data').write_bytes(b'corrupted')
-assert subprocess.run(['sh', '-c', check], capture_output=True).returncode != 0
+# The platform check is device-neutral: it needs the layer's modules, not board files.
+assert 'SHA256SUMS' not in Path('/usr/libexec/minimal-check-platform').read_text()
 subprocess.run(['/usr/libexec/minimal-linux/busybox', '--list'], check=True, stdout=subprocess.DEVNULL)
 # Run the actual packaged Omarchy-derived controls against isolated files.
 import runpy
