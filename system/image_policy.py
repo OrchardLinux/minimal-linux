@@ -17,7 +17,6 @@ RECORD = Path('/run/minimal-linux-ready.json')
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
 PROC = Path('/proc')
 CONFIG = Path('/etc/orchard/release.json')
-INSTALLED = Path('/.orchard-install.json')
 STARTED = Path('/run/openrc/started')
 SERVICES = ('orchard-platform', 'orchard-diagnostics', 'orchard-dhcp', 'orchard-buttons')
 
@@ -40,8 +39,7 @@ def ready(*, ssh_revoked=False):
                 process(1, '/usr/bin/busybox') and
                 (ssh_revoked or process(record['diagnostics_pid'], DIAGNOSTICS_EXECUTABLE)) and
                 process(record['dhcp_pid'], '/usr/libexec/minimal-linux/busybox') and
-                process(record['buttons_pid'], str(Path('/usr/bin/python3').resolve())) and
-                json.loads(INSTALLED.read_text())['release'] == record['release'])
+                process(record['buttons_pid'], str(Path('/usr/bin/python3').resolve())))
     except (OSError, ValueError, KeyError, TypeError):
         return False
 

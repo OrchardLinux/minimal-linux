@@ -17,13 +17,12 @@ class Readiness(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name in ('RECORD', 'BOOT_ID', 'CONFIG', 'INSTALLED', 'STARTED'):
+        for name in ('RECORD', 'BOOT_ID', 'CONFIG', 'STARTED'):
             p = patch.object(policy, name, self.root / name)
             p.start()
             self.addCleanup(p.stop)
         policy.BOOT_ID.write_text('current-boot\n')
         policy.CONFIG.write_text(json.dumps({'release': 'test'}))
-        policy.INSTALLED.write_text(json.dumps({'release': 'test'}))
         policy.STARTED.mkdir()
         for service in policy.SERVICES:
             (policy.STARTED / service).touch()
@@ -64,8 +63,8 @@ class Readiness(unittest.TestCase):
         self.save()
         self.assertFalse(policy.ready())
 
-    def test_different_installed_root_is_not_ready(self):
-        policy.INSTALLED.write_text('{"release":"other"}')
+    def test_different_installed_release_is_not_ready(self):
+        policy.CONFIG.write_text('{"release":"other"}')
         self.assertFalse(policy.ready())
 
     def test_missing_service_is_not_ready(self):
