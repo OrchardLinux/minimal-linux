@@ -10,6 +10,19 @@ Assembly runs the same producers, auditor and CLI resolution as below, then rewr
 
 Public tag/manual builds attest every final asset, including `SHA256SUMS`, and retain `minimal-linux-build.sigstore.jsonl` alongside workflow/draft release assets. Private or unknown-visibility builds skip signing and bundle copying. Only final assembly has signing permissions; public signing failures block release creation. The bundle is not listed in the signed checksum manifest. Verify an asset with `gh attestation verify FILE --repo OrchardLinux/minimal-linux`; attestation is not device qualification.
 
+## With orchard
+
+```sh
+orchard build [--version VERSION]
+```
+
+builds a release into `out/releases/VERSION` (default `dev-DATE-TIME`) through
+`tools/build.py`, the entry `distro.toml` names: the loader and base are kept in
+`out/components/NAME/KEY/`, keyed by their files, and rebuilt only when they
+change; the release is assembled and audited every time. `orchard run` boots its
+recovery on the attached device without installing, and `orchard install`
+installs it. The rest of this page is what that entry runs, step by step.
+
 ## Local setup
 
 Requires uv and a native ARM64 Podman environment. Run commands from this
