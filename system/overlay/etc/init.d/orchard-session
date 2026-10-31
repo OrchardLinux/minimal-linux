@@ -2,6 +2,10 @@
 description="Retain the authenticated recovery session without rebinding hardware"
 depend() { provide dev; }
 start() {
+    if [ ! -s /run/recovery/authorized_keys ]; then
+        einfo "Started without a recovery session: no SSH diagnostics in this boot"
+        return 0
+    fi
     ebegin "Preparing key-only Orchard diagnostics"
     test -c /dev/null && test -r /proc/mounts && test -d /sys/class &&
     test -s /run/recovery/authorized_keys &&
