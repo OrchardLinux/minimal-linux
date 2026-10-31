@@ -146,6 +146,11 @@ def audit(directory):
     assert 'root/.ssh/authorized_keys' not in entries
     assert 'etc/machine-id' not in entries
     assert b'/sbin/openrc default' in entries['etc/inittab'][0]
+    # Every boot is reachable over USB: a serial console login and session SSH.
+    assert b'ttyGS0::respawn:/sbin/getty' in entries['etc/inittab'][0]
+    for name in ('usr/sbin/dropbear', 'usr/sbin/recovery-start-ssh', 'etc/init.d/orchard-diagnostics',
+                 'etc/init.d/orchard-dhcp'):
+        assert name in entries, name
     assert json.loads(entries['etc/orchard/release.json'][0])['release'] == record['release']
     assert 'usr/libexec/minimal-linux/image_policy.py' in entries
     users = [line.split(':') for line in entries['etc/passwd'][0].decode().splitlines()]
