@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="Clear the boot splash and show the console, as soon as the system is up"
+depend() { after orchard-platform; }
+start() {
+    ebegin "Clearing the boot splash"
+    /usr/libexec/minimal-clear-splash >/run/orchard-splash.log 2>&1
+    /usr/libexec/minimal-console >>/run/orchard-splash.log 2>&1
+    eend 0
+}

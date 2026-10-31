@@ -27,7 +27,7 @@ class Readiness(unittest.TestCase):
         for service in policy.SERVICES:
             (policy.STARTED / service).touch()
         self.record = {'release': 'test', 'boot_id': 'current-boot',
-                       'diagnostics_pid': 2, 'dhcp_pid': 4, 'buttons_pid': 5}
+                       'ssh_pid': 2, 'usb_pid': 4, 'buttons_pid': 5}
         self.save()
         # Tests run on macOS as an unprivileged developer. Root metadata and
         # live Linux executables are checked separately in the native image.
@@ -45,13 +45,9 @@ class Readiness(unittest.TestCase):
         self.assertTrue(policy.ready())
         self.assertEqual(self.process.call_count, 4)
 
-    def test_revoked_ssh_does_not_remove_hardware_readiness(self):
-        (policy.STARTED / 'orchard-diagnostics').unlink()
+    def test_no_ssh_server_is_not_ready(self):
         self.process.side_effect = lambda pid, exe: pid != 2
         self.assertFalse(policy.ready())
-        self.assertTrue(policy.ready(ssh_revoked=True))
-        (policy.STARTED / 'orchard-dhcp').unlink()
-        self.assertFalse(policy.ready(ssh_revoked=True))
 
     def test_prior_boot_is_not_ready(self):
         self.record['boot_id'] = 'previous-boot'
@@ -68,7 +64,7 @@ class Readiness(unittest.TestCase):
         self.assertFalse(policy.ready())
 
     def test_missing_service_is_not_ready(self):
-        (policy.STARTED / 'orchard-dhcp').unlink()
+        (policy.STARTED / 'orchard-usb').unlink()
         self.assertFalse(policy.ready())
 
     def test_dead_or_different_process_is_not_ready(self):

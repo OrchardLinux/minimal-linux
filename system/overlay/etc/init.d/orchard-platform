@@ -1,6 +1,5 @@
 #!/sbin/openrc-run
 description="Verify the hardware and the installed hardware files"
-depend() { need orchard-session; }
 start() {
     ebegin "Checking Orchard hardware"
     /usr/libexec/minimal-check-platform >/run/orchard-platform.log 2>&1

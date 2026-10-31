@@ -73,19 +73,15 @@ def root_archive(base, base_receipt, components, output, version):
     for source, target in (('busybox', 'usr/libexec/minimal-linux/busybox'),
                            ('dropbear', 'usr/sbin/dropbear'), ('dropbearkey', 'usr/bin/dropbearkey')):
         additions[target] = (components[source].read_bytes(), 0o755)
-    for name, target in (('start-ssh', 'usr/sbin/recovery-start-ssh'),
-                         ('authorize-key', 'usr/sbin/authorize-key'),
-                         ('capture-adt', 'usr/sbin/capture-adt')):
-        additions[target] = ((hardware / 'boot/initramfs/recovery' / name).read_bytes(), 0o755)
-    additions['etc/udhcpd.conf'] = ((hardware / 'boot/initramfs/recovery/udhcpd.conf').read_bytes(), 0o644)
+    additions['usr/sbin/capture-adt'] = ((hardware / 'boot/initramfs/recovery/capture-adt').read_bytes(), 0o755)
     additions.update({
         'etc/orchard/release.json': (json.dumps({'protocol': 1, 'release': version}).encode(), 0o644),
         # root stays locked; the installer gives the user its password.
-        'etc/shadow': (b'root:!:0:0:99999:7:::\nuser:!:0:0:99999:7:::\n', 0o600),
+        'etc/shadow': (b'root:!:0:0:99999:7:::\ntablet:!:0:0:99999:7:::\n', 0o600),
         'etc/hostname': (b'orchard-minimal\n', 0o644),
         'etc/hosts': (b'127.0.0.1 localhost\n::1 localhost\n', 0o644),
         'etc/resolv.conf': (b'# Configure DNS with your network; no baked-in host state.\n', 0o644),
-        'etc/issue': (b'Orchard minimal Linux: Alpine / OpenRC\nKey-only access over USB SSH.\n', 0o644),
+        'etc/issue': (b'Minimal Alpine (Orchard)\n', 0o644),
     })
     seen, dirs, privileged = set(), set(), []
     expanded = count = 0
@@ -146,8 +142,8 @@ def root_archive(base, base_receipt, components, output, version):
                 member = tarfile.TarInfo(name)
                 member.mode, member.size = mode, len(data)
                 add(member, data)
-            for service in ('orchard-session', 'orchard-platform', 'orchard-diagnostics',
-                            'orchard-dhcp', 'orchard-buttons', 'orchard-ready'):
+            for service in ('orchard-platform', 'orchard-usb', 'orchard-ssh', 'orchard-buttons',
+                            'orchard-splash', 'orchard-ready'):
                 name = 'etc/runlevels/default/' + service
                 parents(name)
                 member = tarfile.TarInfo(name)

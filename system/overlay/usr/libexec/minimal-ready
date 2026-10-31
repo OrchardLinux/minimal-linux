@@ -1,11 +1,10 @@
 #!/usr/bin/python3
-"""Wait for actual diagnostics/lease processes, then seal the current boot marker."""
+"""Wait for the SSH, USB network and button processes, then seal the current boot marker."""
 import json
 import os
 from pathlib import Path
 import sys
 import time
-import subprocess
 
 sys.path.insert(0, '/usr/libexec/minimal-linux')
 import image_policy as policy
@@ -15,32 +14,15 @@ while True:
     try:
         record = {'boot_id': policy.BOOT_ID.read_text().strip(),
                   'release': json.loads(policy.CONFIG.read_text())['release'],
-                  'diagnostics_pid': int(Path('/run/recovery/dropbear.pid').read_text()),
-                  'dhcp_pid': int(Path('/run/orchard-dhcp.pid').read_text()),
+                  'ssh_pid': int(Path('/run/dropbear.pid').read_text()),
+                  'usb_pid': int(Path('/run/orchard-usb.pid').read_text()),
                   'buttons_pid': int(Path('/run/orchard-buttons.pid').read_text())}
         temporary = policy.RECORD.with_suffix('.pending')
         temporary.write_text(json.dumps(record, sort_keys=True))
         temporary.chmod(0o600)
         os.replace(temporary, policy.RECORD)
         if policy.ready():
-            # Cosmetic image policy only, after all hardware/services pass.
-            # A missing display must not invalidate headless SSH readiness.
-            try:
-                record['splash'] = json.loads(subprocess.check_output(
-                    ['/usr/libexec/minimal-clear-splash'], text=True, timeout=10))
-            except (OSError, ValueError, subprocess.SubprocessError) as error:
-                record['splash'] = {'cleared': False, 'error': str(error)}
-                print('Splash clear warning:', error, flush=True)
-            try:
-                record['console'] = json.loads(subprocess.check_output(
-                    ['/usr/libexec/minimal-console'], text=True, timeout=10))
-            except (OSError, ValueError, subprocess.SubprocessError) as error:
-                record['console'] = {'active': False, 'error': str(error)}
-                print('Console activation warning:', error, flush=True)
-            temporary.write_text(json.dumps(record, sort_keys=True))
-            temporary.chmod(0o600)
-            os.replace(temporary, policy.RECORD)
-            # The installer waits for this file (release.toml install.ready).
+            # The installer may check this file (release.toml install.ready).
             Path('/run/orchard-ready').touch()
             print('Minimal Alpine/OpenRC ready')
             break
@@ -48,5 +30,5 @@ while True:
     except (OSError, ValueError, KeyError):
         policy.RECORD.unlink(missing_ok=True)
     if time.monotonic() >= end:
-        raise RuntimeError('Required headless services did not become ready')
+        raise RuntimeError('Required services did not become ready')
     time.sleep(.1)

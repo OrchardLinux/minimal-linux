@@ -148,8 +148,9 @@ def audit(directory):
     assert b'/sbin/openrc default' in entries['etc/inittab'][0]
     # Every boot is reachable over USB: a serial console login and session SSH.
     assert b'ttyGS0::respawn:/sbin/getty' in entries['etc/inittab'][0]
-    for name in ('usr/sbin/dropbear', 'usr/sbin/recovery-start-ssh', 'etc/init.d/orchard-diagnostics',
-                 'etc/init.d/orchard-dhcp'):
+    for name in ('usr/sbin/dropbear', 'etc/init.d/orchard-ssh', 'etc/init.d/orchard-usb',
+                 'etc/runlevels/default/orchard-ssh', 'etc/runlevels/default/orchard-usb',
+                 'etc/init.d/orchard-splash', 'etc/orchard/udhcpd.conf'):
         assert name in entries, name
     assert json.loads(entries['etc/orchard/release.json'][0])['release'] == record['release']
     assert 'usr/libexec/minimal-linux/image_policy.py' in entries
