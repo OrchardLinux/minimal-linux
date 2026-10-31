@@ -19,7 +19,7 @@ class Components(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / 'source').mkdir()
         self.args = [sys.executable, str(PROJECT / 'pin_components.py')]
-        for role in ('loader', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw'):
+        for role in ('loader', 'splash', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw'):
             p = self.root / 'source' / role
             p.write_bytes(role.encode())
             self.args += ['--' + role, str(p)]

@@ -31,6 +31,9 @@ def main():
         if args.resume:
             command.append('--resume')
         subprocess.run(command, check=True)
+        # The same picture as orchard's boot splash, for orchard launch.
+        subprocess.run([sys.executable, str(here / 'splash.py'), str(header),
+                        str(args.output.with_name('splash'))], check=True)
 
 
 if __name__ == '__main__':main()

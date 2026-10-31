@@ -15,7 +15,7 @@ import tempfile
 
 from orchard.image.integrity import sha
 
-ROLES = ('loader', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw')
+ROLES = ('loader', 'splash', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw')
 
 
 def main():

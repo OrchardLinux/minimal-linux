@@ -73,6 +73,8 @@ def root_archive(base, base_receipt, components, output, version):
     for source, target in (('busybox', 'usr/libexec/minimal-linux/busybox'),
                            ('dropbear', 'usr/sbin/dropbear'), ('dropbearkey', 'usr/bin/dropbearkey')):
         additions[target] = (components[source].read_bytes(), 0o755)
+    # orchard launch paints it before the kernel (orchard docs/boot-contract.md).
+    additions['usr/share/orchard/splash'] = (components['splash'].read_bytes(), 0o644)
     additions['usr/sbin/capture-adt'] = ((hardware / 'boot/initramfs/recovery/capture-adt').read_bytes(), 0o755)
     additions.update({
         'etc/orchard/release.json': (json.dumps({'protocol': 1, 'release': version}).encode(), 0o644),

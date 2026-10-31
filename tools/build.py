@@ -21,7 +21,7 @@ PROJECT = Path(__file__).resolve().parents[1]
 # What each component is made from, relative to this checkout.
 INPUTS = {
     'base': ['build_base.py', 'system/Containerfile', 'system/install-base'],
-    'loader': ['boot/build-loader.py', 'boot/generate-logo.py', 'boot/artwork', 'boot/m1n1/patches'],
+    'loader': ['boot/build-loader.py', 'boot/generate-logo.py', 'boot/splash.py', 'boot/artwork', 'boot/m1n1/patches'],
 }
 
 
@@ -47,7 +47,7 @@ def main():
     (PROJECT / 'out').mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.inputs-', dir=PROJECT / 'out') as temporary:
         inputs = Path(temporary) / 'public'
-        python('pin_components.py', '--loader', loader, '--pongo', shared['pongo'],
+        python('pin_components.py', '--loader', loader, '--splash', loader.with_name('splash'), '--pongo', shared['pongo'],
                '--busybox', tools / 'busybox', '--dropbear', tools / 'dropbear', '--dropbearkey', tools / 'dropbearkey',
                '--wpa-supplicant', tools / 'wpa_supplicant', '--wpa-cli', tools / 'wpa_cli', '--iw', tools / 'iw',
                '--output', inputs)
