@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+description="USB network for the computer: 172.16.42.1 here, DHCP hands out .2"
+command="/usr/libexec/minimal-linux/busybox"
+command_args="udhcpd -f /etc/orchard/udhcpd.conf"
+command_background=true
+pidfile="/run/orchard-usb.pid"
+start_pre() {
+    # usb0 is orchard's USB gadget; give it the address unless it has it already.
+    ip address show dev usb0 | grep -q 'inet ' && return 0
+    ip address add 172.16.42.1/30 dev usb0 && ip link set usb0 up
+}

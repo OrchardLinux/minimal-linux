@@ -2,7 +2,7 @@
 
 A small Alpine-based Linux image for Apple devices, demonstrating the Orchard release format without a desktop or systemd requirement.
 
-Currently supports iPad 6 Wi-Fi (`iPad7,5`, J71b), experimentally. Boot is tethered and requires a host computer. This is a development/reference image, not a general-purpose tablet distribution.
+A release covers every device orchard describes: one root image, and orchard's kernel, device trees and modules per platform. How well a device works is orchard's device data, which the installer shows; today the iPad 6 Wi-Fi (`iPad7,5`, J71b) is supported, the others are experimental. Boot is tethered and requires a host computer. The installer sets the password of its one user, `tablet`; the console on tty1 and the USB serial console take it.
 
 ## Local development
 
@@ -15,8 +15,16 @@ and the `orchard` tool. Put orchard's launcher on your PATH once (see its
 repository's producers and tests in that orchard's environment:
 
 ```sh
+orchard build        # the loader and base if they changed, then a release in out/releases/dev-DATE-TIME
+orchard run          # build, then start that release's recovery on the attached device, from RAM
+orchard install      # install the last build
 orchard python -m unittest discover -s tests
 ```
+
+`distro.toml` makes this checkout an orchard distribution; `orchard build` runs
+`tools/build.py`, which keeps the loader and base in `out/components/` and rebuilds
+them only when their files change. orchard brings Pongo, the static tools and the
+kernels.
 
 RAM experiments and device bring-up happen in orchard itself, with its
 [examples](https://github.com/OrchardLinux/orchard/tree/main/examples). This
@@ -28,13 +36,22 @@ Follow [BUILD.md](BUILD.md) to set up a repository-local environment, build publ
 
 Distro builds use the orchard checkout `orchard` runs and explicit component artifacts. Private firmware, calibration, device identity and diagnostic keys are not included in public images.
 
-## Install a local build
+## Install
 
-Use [orchard](https://github.com/OrchardLinux/orchard) with a compatible device and a prepared Linux-data partition. Back up the device first; storage changes can permanently erase data.
+Back up the device first; storage changes can permanently erase data. With the
+device in DFU mode, a published release installs with its own installer, which
+brings its own Python:
 
 ```sh
-orchard resolve out/releases/YOUR_NEW_VERSION/index.toml
-orchard install out/releases/YOUR_NEW_VERSION/index.toml
+curl -fsSL https://github.com/OrchardLinux/minimal-linux/releases/latest/download/install.sh | sh
+```
+
+A local build has the same installer next to it (`sh out/releases/VERSION/install.sh`),
+or install it with your orchard checkout:
+
+```sh
+orchard install                                          # the last orchard build
+orchard install out/releases/YOUR_NEW_VERSION/index.toml # or a particular one
 ```
 
 The CLI asks before installation or formatting. Do not interrupt a confirmed storage operation. Building or testing in a container does not qualify a release on hardware.

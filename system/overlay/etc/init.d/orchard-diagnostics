@@ -1,8 +1,0 @@
-#!/sbin/openrc-run
-description="Pinned key-only USB diagnostics"
-command="/sbin/recovery-start-ssh"
-command_background=true
-# The shared revoker retires other connections, then returns over its own.
-rc_cgroup_cleanup="NO"
-pidfile="/run/orchard-diagnostics.pid"
-depend() { need orchard-session; }

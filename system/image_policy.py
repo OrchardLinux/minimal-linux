@@ -5,21 +5,16 @@ from pathlib import Path
 import stat
 import subprocess
 
-DIAGNOSTICS_EXECUTABLE = '/usr/sbin/dropbear'
+SSH_EXECUTABLE = '/usr/sbin/dropbear'
 
-
-def stop_diagnostics():
-    subprocess.run(['rc-service', 'orchard-diagnostics', 'stop'],
-                   check=True, capture_output=True, timeout=15)
 
 INIT = '/sbin/init'
 RECORD = Path('/run/minimal-linux-ready.json')
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
 PROC = Path('/proc')
 CONFIG = Path('/etc/orchard/release.json')
-INSTALLED = Path('/.orchard-install.json')
 STARTED = Path('/run/openrc/started')
-SERVICES = ('orchard-platform', 'orchard-diagnostics', 'orchard-dhcp', 'orchard-buttons')
+SERVICES = ('orchard-platform', 'orchard-ssh', 'orchard-usb', 'orchard-buttons')
 
 
 def process(pid, executable):
@@ -27,7 +22,7 @@ def process(pid, executable):
     return path.stat().st_uid == 0 and str((path / 'exe').readlink()) == executable
 
 
-def ready(*, ssh_revoked=False):
+def ready():
     try:
         info = RECORD.lstat()
         if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
@@ -35,13 +30,11 @@ def ready(*, ssh_revoked=False):
         record = json.loads(RECORD.read_text())
         return (record['boot_id'] == BOOT_ID.read_text().strip() and
                 record['release'] == json.loads(CONFIG.read_text())['release'] and
-                all((STARTED / name).exists() for name in SERVICES
-                    if not (ssh_revoked and name == 'orchard-diagnostics')) and
+                all((STARTED / name).exists() for name in SERVICES) and
                 process(1, '/usr/bin/busybox') and
-                (ssh_revoked or process(record['diagnostics_pid'], DIAGNOSTICS_EXECUTABLE)) and
-                process(record['dhcp_pid'], '/usr/libexec/minimal-linux/busybox') and
-                process(record['buttons_pid'], str(Path('/usr/bin/python3').resolve())) and
-                json.loads(INSTALLED.read_text())['release'] == record['release'])
+                process(record['ssh_pid'], SSH_EXECUTABLE) and
+                process(record['usb_pid'], '/usr/libexec/minimal-linux/busybox') and
+                process(record['buttons_pid'], str(Path('/usr/bin/python3').resolve())))
     except (OSError, ValueError, KeyError, TypeError):
         return False
 
@@ -59,11 +52,10 @@ def validate_handoff(root):
                  'usr/libexec/minimal-console', 'usr/libexec/minimal-buttons',
                  'usr/libexec/minimal-screen-toggle', 'usr/libexec/minimal-brightness-display',
                  'usr/bin/bash',
-                 'usr/libexec/minimal-linux/busybox',
-                 'usr/sbin/recovery-start-ssh'):
+                 'usr/libexec/minimal-linux/busybox'):
         if not os.access(root / name, os.X_OK):
             raise ValueError('Missing Alpine handoff executable: ' + name)
-    for name in (*SERVICES, 'orchard-session', 'orchard-ready'):
+    for name in (*SERVICES, 'orchard-splash', 'orchard-ready'):
         if not os.access(root / 'etc/init.d' / name, os.X_OK):
             raise ValueError('Missing OpenRC service: ' + name)
     if (root / 'usr/lib/systemd/systemd').exists():
@@ -87,7 +79,7 @@ def verify_privileges(root):
 
 
 def verify_session_access(root):
-    # Headless key-only root diagnostics, not a desktop/unprivileged user ABI.
+    # Root is locked; the tablet user signs in (console password, SSH keys).
     for name in ('root', 'etc/shadow'):
         path = root / name
         info = path.lstat()
@@ -96,13 +88,13 @@ def verify_session_access(root):
     shadow = (root / 'etc/shadow').read_text().splitlines()
     if not any(row.startswith(('root:!:', 'root:*:')) for row in shadow):
         raise ValueError('Root password must be locked')
-    if (root / 'root/.ssh').exists():
-        raise ValueError('Public root must not contain session credentials')
+    if (root / 'root/.ssh').exists() or (root / 'home/tablet/.ssh').exists() or (root / 'etc/dropbear').exists():
+        raise ValueError('Public root must not contain credentials or host keys')
 
 
 def diagnostics():
     logs = {}
-    for name in ('minimal-linux-ready.json', 'orchard-platform.log'):
+    for name in ('minimal-linux-ready.json', 'orchard-platform.log', 'orchard-splash.log'):
         path = Path('/run') / name
         try:
             if path.is_file() and not path.is_symlink():

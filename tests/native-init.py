@@ -14,15 +14,12 @@ parser.add_argument('image')
 args = parser.parse_args()
 setup = r'''
 set -eu
+# As an installed system boots: usb0 from the gadget, the imported key in
+# tablet's home; the services configure the rest themselves.
 ip link add usb0 type dummy
-ip address add 172.16.42.1/30 dev usb0
-ip link set usb0 up
 ssh-keygen -q -t ed25519 -N '' -f /tmp/client
-mkdir -p /root/.ssh /run/recovery /run/orchard
-chmod 700 /root/.ssh
-cp /tmp/client.pub /run/recovery/authorized_keys
-chmod 600 /run/recovery/authorized_keys
-/usr/bin/dropbearkey -t ed25519 -f /run/recovery/ssh_host_ed25519_key >/dev/null 2>&1
+install -d -m 700 -o tablet -g tablet /home/tablet/.ssh
+install -m 600 -o tablet -g tablet /tmp/client.pub /home/tablet/.ssh/authorized_keys
 exec /sbin/init
 '''
 cid = subprocess.check_output(['podman', 'create', '--network', 'none', '--cap-add', 'NET_ADMIN',
@@ -32,7 +29,7 @@ cid = subprocess.check_output(['podman', 'create', '--network', 'none', '--cap-a
 try:
     subprocess.run(['podman', 'start', cid], check=True, stdout=subprocess.DEVNULL)
     end = time.monotonic() + 15
-    check = "from pathlib import Path; assert Path('/run/openrc/started/orchard-diagnostics').exists(); assert Path('/run/openrc/started/orchard-dhcp').exists(); assert Path('/run/orchard-platform.log').exists(); p=Path('/proc')/Path('/run/orchard-dhcp.pid').read_text().strip(); assert str((p/'exe').readlink()) == '/usr/libexec/minimal-linux/busybox'; assert any(line.split()[1].endswith(':0043') for line in Path('/proc/net/udp').read_text().splitlines()[1:])"
+    check = "from pathlib import Path; assert Path('/run/openrc/started/orchard-ssh').exists(); assert Path('/run/openrc/started/orchard-usb').exists(); assert Path('/run/orchard-platform.log').exists(); p=Path('/proc')/Path('/run/orchard-usb.pid').read_text().strip(); assert str((p/'exe').readlink()) == '/usr/libexec/minimal-linux/busybox'; assert any(line.split()[1].endswith(':0043') for line in Path('/proc/net/udp').read_text().splitlines()[1:])"
     while True:
         probe = subprocess.run(['podman', 'exec', cid, '/usr/bin/python3', '-c', check], capture_output=True)
         if probe.returncode == 0:
