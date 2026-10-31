@@ -54,6 +54,8 @@ def main():
         python('build.py', '--base', base, '--base-receipt', base.with_name(base.name + '.json'),
                '--inputs', inputs / 'inputs.json', '--version', args.version, '--output', args.output)
     python('audit.py', args.output)
+    # install.sh and orchard-install.pyz, with orchard's launch loaders from its cache.
+    python('-m', 'orchard.installer', 'release', args.output)
 
 
 if __name__ == '__main__':

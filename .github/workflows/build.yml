@@ -244,6 +244,9 @@ jobs:
             --inputs out/inputs/inputs.json --version "$VERSION" --output out/release "${kernels[@]}"
           python audit.py out/release
           python -m orchard.manifests --verify-local out/release/index.toml
+          # The installer: install.sh and orchard-install.pyz with orchard's launch loaders.
+          python -m orchard.installer release out/release \
+            --pongo "$tools/quiet/pongo.bin" --m1n1 "$tools/quiet/m1n1.bin"
           python -m orchard.image.publish --distro minimal-linux --tag "$TAG" \
             --release-dir out/release --output out/publication
           cp out/release/rootfs.json out/release/build-receipt.json out/base/* out/publication/

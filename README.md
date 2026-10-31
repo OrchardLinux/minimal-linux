@@ -36,9 +36,18 @@ Follow [BUILD.md](BUILD.md) to set up a repository-local environment, build publ
 
 Distro builds use the orchard checkout `orchard` runs and explicit component artifacts. Private firmware, calibration, device identity and diagnostic keys are not included in public images.
 
-## Install a local build
+## Install
 
-Use [orchard](https://github.com/OrchardLinux/orchard) with a compatible device and a prepared Linux-data partition. Back up the device first; storage changes can permanently erase data.
+Back up the device first; storage changes can permanently erase data. With the
+device in DFU mode, a published release installs with its own installer, which
+brings its own Python:
+
+```sh
+curl -fsSL https://github.com/OrchardLinux/minimal-linux/releases/latest/download/install.sh | sh
+```
+
+A local build has the same installer next to it (`sh out/releases/VERSION/install.sh`),
+or install it with your orchard checkout:
 
 ```sh
 orchard install                                          # the last orchard build
