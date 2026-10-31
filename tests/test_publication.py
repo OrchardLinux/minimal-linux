@@ -35,7 +35,9 @@ class Publication(unittest.TestCase):
             source = Path(directory)
             manifest = tomllib.loads(release(source).read_text())
             validate(manifest), validate(tomllib.loads((source / 'index.toml').read_text()))
-            self.assertEqual(manifest['install'], {'default_root': '/minimal', 'account': True})
+            self.assertEqual(manifest['install'], {
+                'default_root': '/minimal', 'ready': '/run/orchard-ready',
+                'account': {'user': 'tablet', 'password': True, 'pin': False, 'passwordless_sudo': False}})
             self.assertEqual(sorted(manifest['platforms']), ['apple-16k', 'apple-4k'])
 
     def test_minimal_manifest_is_rewritten_and_rehashed(self):

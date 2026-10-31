@@ -181,8 +181,11 @@ def manifests(output, version, root, platforms, orchard):
                 'name = "Minimal Alpine"\nversion = ' + json.dumps(version) + '\n'
                 'boot_method = "checkm8-pongo"\nmin_orchard = "0.2.0"\nprotocol = 1\n')
     document += table('orchard', orchard)
-    # The one regular user gets the password at install; the PIN is unused here.
-    document += table('install', {'default_root': '/minimal', 'account': True})
+    # The one regular user gets its password at install; no lock screen, so no PIN.
+    # The ready file is minimal-ready's, once services and the splash are done.
+    document += table('install', {'default_root': '/minimal', 'ready': '/run/orchard-ready'})
+    document += table('install.account', {'user': 'tablet', 'password': True, 'pin': False,
+                                          'passwordless_sudo': False})
     row = receipt(output / 'rootfs.tar.gz')
     row.update({key: root[key] for key in ('compression', 'expanded_bytes', 'members')})
     document += table('root', row) + table('pongo', receipt(output / 'pongo.bin'))

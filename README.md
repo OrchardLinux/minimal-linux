@@ -2,7 +2,7 @@
 
 A small Alpine-based Linux image for Apple devices, demonstrating the Orchard release format without a desktop or systemd requirement.
 
-A release covers every device orchard describes: one root image, and orchard's kernel, device trees and modules per platform. How well a device works is orchard's device data, which the installer shows; today the iPad 6 Wi-Fi (`iPad7,5`, J71b) is supported, the others are experimental. Boot is tethered and requires a host computer. The installer sets the password of its one user, `user`; the console on tty1 takes it.
+A release covers every device orchard describes: one root image, and orchard's kernel, device trees and modules per platform. How well a device works is orchard's device data, which the installer shows; today the iPad 6 Wi-Fi (`iPad7,5`, J71b) is supported, the others are experimental. Boot is tethered and requires a host computer. The installer sets the password of its one user, `tablet`; the console on tty1 and the USB serial console take it.
 
 ## Local development
 

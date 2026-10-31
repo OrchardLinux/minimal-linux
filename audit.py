@@ -128,7 +128,7 @@ def audit(directory):
             assert not m.name.startswith('/') and '..' not in PurePosixPath(m.name).parts
             assert m.isfile() or m.isdir() or m.issym() or m.islnk()
             # Everything is root's but the one user's home.
-            assert m.uid == 0 or m.name == 'home/user' or m.name.startswith('home/user/'), m.name
+            assert m.uid == 0 or m.name == 'home/tablet' or m.name.startswith('home/tablet/'), m.name
             assert m.issym() or not m.mode & 0o6000
             assert not m.name.startswith(('etc/omarchy', 'home/tablet', 'usr/lib/systemd',
                                           'usr/bin/sudo', 'usr/libexec/omarchy-', 'usr/lib/modules/'))
@@ -149,7 +149,7 @@ def audit(directory):
     assert json.loads(entries['etc/orchard/release.json'][0])['release'] == record['release']
     assert 'usr/libexec/minimal-linux/image_policy.py' in entries
     users = [line.split(':') for line in entries['etc/passwd'][0].decode().splitlines()]
-    assert [row[0] for row in users if 1000 <= int(row[2]) < 60000] == ['user']
+    assert [row[0] for row in users if 1000 <= int(row[2]) < 60000] == ['tablet']
     platforms = {}
     for name, files in sorted(manifest['platforms'].items()):
         for role in ('boot', 'layer'):

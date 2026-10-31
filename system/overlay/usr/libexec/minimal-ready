@@ -40,6 +40,8 @@ while True:
             temporary.write_text(json.dumps(record, sort_keys=True))
             temporary.chmod(0o600)
             os.replace(temporary, policy.RECORD)
+            # The installer waits for this file (release.toml install.ready).
+            Path('/run/orchard-ready').touch()
             print('Minimal Alpine/OpenRC ready')
             break
         policy.RECORD.unlink()
