@@ -26,7 +26,8 @@ def splash(header):
     pixels = bytearray()
     for bit in range(size * size):
         on = lambda plane: plane[bit // 8] & (0x80 >> (bit % 8))
-        pixels += bytes((*(BLUE if on(blue) else WHITE if on(white) else BLACK), 0))
+        r, g, b = BLUE if on(blue) else WHITE if on(white) else BLACK
+        pixels += bytes((b, g, r, 0))  # the framebuffer's XRGB8888
     return struct.pack('<4sII', b'OSPL', size, size) + pixels
 
 
