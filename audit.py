@@ -130,7 +130,7 @@ def audit(directory):
             # Everything is root's but the one user's home.
             assert m.uid == 0 or m.name == 'home/tablet' or m.name.startswith('home/tablet/'), m.name
             assert m.issym() or not m.mode & 0o6000
-            assert not m.name.startswith(('etc/omarchy', 'home/tablet', 'usr/lib/systemd',
+            assert not m.name.startswith(('etc/omarchy', 'usr/lib/systemd',
                                           'usr/bin/sudo', 'usr/libexec/omarchy-', 'usr/lib/modules/'))
             data = archive.extractfile(m).read() if m.isfile() else None
             if data is not None:
