@@ -9,10 +9,12 @@ A release covers every device orchard describes: one root image, and orchard's k
 This repository is a distribution on top of
 [orchard](https://github.com/OrchardLinux/orchard), which holds the hardware support
 and the `orchard` tool. Put orchard's launcher on your PATH once (see its
-[README](https://github.com/OrchardLinux/orchard#develop)); here it runs orchard's
-`main` by default, or the checkout a gitignored `orchard.local.toml` names
-(`orchard = "../orchard-mine"`, plus `device = "j71b"` for your board). Run this
-repository's producers and tests in that orchard's environment:
+[README](https://github.com/OrchardLinux/orchard#develop)); it runs orchard's newest
+nightly, whose kernels, m1n1, Pongo and tools this build then takes as they are.
+To build against your own orchard checkout, run that checkout's launcher
+(`../orchard-mine/bin/orchard build`). A gitignored `orchard.local.toml` may hold
+`device = "j71b"` for your board. Run this repository's producers and tests in
+that orchard's environment:
 
 ```sh
 orchard build        # the loader and base if they changed, then a release in out/releases/dev-DATE-TIME

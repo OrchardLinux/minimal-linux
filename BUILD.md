@@ -32,9 +32,10 @@ repository. Build tools require no device access or host firmware cache.
 orchard --version
 ```
 
-`orchard` comes from orchard's launcher on your PATH and runs orchard's `main`, or
-the checkout your `orchard.local.toml` names. Run this repository's producers with
-`orchard python ...`, which uses that checkout's environment. Container package
+`orchard` comes from orchard's launcher on your PATH and runs orchard's newest
+nightly (`ORCHARD_VERSION` pins one); an orchard checkout's own `bin/orchard` runs
+that checkout. Run this repository's producers with `orchard python ...`, which
+uses that orchard's environment. Container package
 downloads remain separate from the IPSW/device-firmware cache. Full Alpine image
 assembly below is owned by this repository; it is not an `orchard build` special case.
 
