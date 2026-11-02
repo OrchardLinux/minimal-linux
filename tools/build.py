@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """orchard build's entry (distro.toml): the loader and Alpine base, then the release.
 
-orchard runs it as `tools/build.py --version VERSION --output DIRECTORY` in
-this checkout. The loader and base land in out/components/NAME/KEY/, keyed
+orchard runs it as `tools/build.py --version VERSION --output DIRECTORY
+[--platform NAME ... | --platform all]` in this checkout. The loader and base land in out/components/NAME/KEY/, keyed
 by the files they are made from, so a build redoes only what changed.
 orchard supplies Pongo, the static tools and every platform's kernel from
 its shared cache. The release itself is always assembled anew.
@@ -34,7 +34,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('--version', required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--platform', action='append', default=[],
+                        help='build this platform (repeat), or all; orchard passes the selection')
     args = parser.parse_args()
+    if 'all' in args.platform and len(args.platform) > 1:
+        parser.error('--platform all builds every platform and combines with no other')
+    # The release builder builds every platform when it is given none.
+    selected = [part for name in args.platform if name != 'all' for part in ('--platform', name)]
 
     base, _ = component(PROJECT, 'base', INPUTS['base'],
                         lambda path, work: python('build_base.py', '--output', path), artifact='base.tar.gz')
@@ -52,7 +58,8 @@ def main():
                '--wpa-supplicant', tools / 'wpa_supplicant', '--wpa-cli', tools / 'wpa_cli', '--iw', tools / 'iw',
                '--output', inputs)
         python('build.py', '--base', base, '--base-receipt', base.with_name(base.name + '.json'),
-               '--inputs', inputs / 'inputs.json', '--version', args.version, '--output', args.output)
+               '--inputs', inputs / 'inputs.json', '--version', args.version, *selected,
+               '--output', args.output)
     python('audit.py', args.output)
     # install.sh and orchard-install.pyz, with orchard's launch loaders from its cache.
     python('-m', 'orchard.installer', 'release', args.output)
