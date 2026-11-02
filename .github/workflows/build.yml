@@ -26,6 +26,22 @@ env:
   HARDWARE_TAG: ${{ inputs.hardware_tag || 'v0.2.0' }}
   HARDWARE_ARTIFACT_DIR: ${{ inputs.hardware_run_id != '' && 'out/downloads/hardware' || '' }}
 jobs:
+  orchard:
+    # The orchard version this run builds with, resolved once for every job:
+    # nightly becomes the newest nightly-YYYYMMDD-COMMIT, a tag stays as it is.
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - id: resolve
+        run: |
+          tag="$HARDWARE_TAG"
+          if [[ "$tag" == nightly ]]; then
+            tag=$(curl -fsSL --retry 3 https://github.com/OrchardLinux/orchard/releases/download/nightly/latest.json |
+              python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])')
+          fi
+          echo "orchard $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
   test:
     runs-on: ubuntu-24.04
     strategy:
@@ -88,7 +104,9 @@ jobs:
           retention-days: 2
   base:
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
-    needs: test
+    needs: [test, orchard]
+    env:
+      HARDWARE_TAG: ${{ needs.orchard.outputs.tag }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -126,7 +144,9 @@ jobs:
           if-no-files-found: error
           retention-days: 2
   assets:
-    needs: [test, artwork, base]
+    needs: [test, orchard, artwork, base]
+    env:
+      HARDWARE_TAG: ${{ needs.orchard.outputs.tag }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
