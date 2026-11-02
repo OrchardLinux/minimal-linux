@@ -207,6 +207,7 @@ def recovery(output, base, base_receipt, components, platform_name, bundle):
                '--kernel', str(bundle / 'Image.gz'), '--modules-dir', str(bundle / 'lib/modules')]
     for name in ('loader', 'busybox', 'dropbear', 'dropbearkey', 'wpa_supplicant', 'wpa_cli', 'iw'):
         command += ['--' + name.replace('_', '-'), str(components[name])]
+    command += ['--logo', str(components['logo'])]  # the Alpine mark, drawn by orchard's m1n1
     command += ['--root-receipt', str(output / 'rootfs.json'), '--output', str(image)]
     subprocess.run(command, check=True)
     return image

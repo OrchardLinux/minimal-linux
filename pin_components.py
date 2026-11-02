@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pin the public components shared by every platform: loader, Pongo and static tools.
+"""Pin the public components shared by every platform: orchard's m1n1 and Pongo, the artwork, static tools.
 
 Kernels are not pinned here: build.py takes every platform's kernel from
 orchard's cache, or from --kernel-dir. This records operator-selected inputs,
@@ -15,7 +15,7 @@ import tempfile
 
 from orchard.image.integrity import sha
 
-ROLES = ('loader', 'splash', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw')
+ROLES = ('loader', 'splash', 'logo', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw')
 
 
 def main():

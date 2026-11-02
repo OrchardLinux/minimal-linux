@@ -32,7 +32,7 @@ repository builds the Alpine image; its assembly is documented below.
 
 ## Build and validate
 
-Follow [BUILD.md](BUILD.md) to set up a repository-local environment, build public components, assemble a coherent root/recovery release and run isolated tests. [Boot presentation](boot/README.md) describes the Alpine artwork and loader producers.
+Follow [BUILD.md](BUILD.md) to set up a repository-local environment, build public components, assemble a coherent root/recovery release and run isolated tests. [Boot presentation](boot/README.md) describes the Alpine artwork, data for orchard's m1n1.
 
 Distro builds use the orchard checkout `orchard` runs and explicit component artifacts. Private firmware, calibration, device identity and diagnostic keys are not included in public images.
 

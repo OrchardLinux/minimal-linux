@@ -4,8 +4,8 @@
 orchard runs it as `tools/build.py --version VERSION --output DIRECTORY
 [--platform NAME ... | --platform all]` in this checkout. The loader and base land in out/components/NAME/KEY/, keyed
 by the files they are made from, so a build redoes only what changed.
-orchard supplies Pongo, the static tools and every platform's kernel from
-its shared cache. The release itself is always assembled anew.
+orchard supplies m1n1, Pongo, the static tools and every platform's kernel
+from its shared cache; the Alpine artwork is data for orchard's m1n1. The release itself is always assembled anew.
 """
 import argparse
 from pathlib import Path
@@ -14,14 +14,13 @@ import sys
 import tempfile
 
 from orchard.distro import component
-from orchard.build import prepare_shared, recipe_key
-from orchard.hardware import ROOT as ORCHARD
+from orchard.build import prepare_shared
 
 PROJECT = Path(__file__).resolve().parents[1]
 # What each component is made from, relative to this checkout.
 INPUTS = {
     'base': ['build_base.py', 'system/Containerfile', 'system/install-base'],
-    'loader': ['boot/build-loader.py', 'boot/generate-logo.py', 'boot/splash.py', 'boot/artwork', 'boot/m1n1/patches'],
+    'artwork': ['boot/build-artwork.py', 'boot/generate-logo.py', 'boot/splash.py', 'boot/artwork'],
 }
 
 
@@ -44,16 +43,15 @@ def main():
 
     base, _ = component(PROJECT, 'base', INPUTS['base'],
                         lambda path, work: python('build_base.py', '--output', path), artifact='base.tar.gz')
-    loader, _ = component(PROJECT, 'loader', INPUTS['loader'],
-                          lambda path, work: python('boot/build-loader.py', '--output', path,
-                                                    '--work-dir', work / 'm1n1'),
-                          artifact='m1n1.bin', extra=[recipe_key(ORCHARD, ['boot/m1n1', 'src/orchard/buildenv.py'])])
+    artwork, _ = component(PROJECT, 'artwork', INPUTS['artwork'],
+                           lambda path, work: python('boot/build-artwork.py', '--output', path), artifact='artwork')
     shared = prepare_shared()
     tools = shared['tools']
     (PROJECT / 'out').mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.inputs-', dir=PROJECT / 'out') as temporary:
         inputs = Path(temporary) / 'public'
-        python('pin_components.py', '--loader', loader, '--splash', loader.with_name('splash'), '--pongo', shared['pongo'],
+        python('pin_components.py', '--loader', shared['loader'], '--splash', artwork / 'splash',
+               '--logo', artwork / 'logo.bin', '--pongo', shared['pongo'],
                '--busybox', tools / 'busybox', '--dropbear', tools / 'dropbear', '--dropbearkey', tools / 'dropbearkey',
                '--wpa-supplicant', tools / 'wpa_supplicant', '--wpa-cli', tools / 'wpa_cli', '--iw', tools / 'iw',
                '--output', inputs)
