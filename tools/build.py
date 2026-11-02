@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""orchard build's entry (distro.toml): the loader and Alpine base, then the release.
+"""orchard build's entry (orchard.toml [release]): the loader and Alpine base, then the release.
 
 orchard runs it as `tools/build.py --version VERSION --output DIRECTORY
 [--platform NAME ... | --platform all]` in this checkout. The loader and base land in out/components/NAME/KEY/, keyed

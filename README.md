@@ -23,7 +23,7 @@ orchard install      # install the last build
 orchard python -m unittest discover -s tests
 ```
 
-`distro.toml` makes this checkout an orchard distribution; `orchard build` runs
+`orchard.toml` (its `[release]` table) makes this checkout an orchard distribution; `orchard build` runs
 `tools/build.py`, which keeps the loader and base in `out/components/` and rebuilds
 them only when their files change. orchard brings Pongo, the static tools and the
 kernels.
