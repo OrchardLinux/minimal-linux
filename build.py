@@ -17,8 +17,7 @@ import sys
 import tarfile
 import tempfile
 
-from orchard.image.integrity import sha
-from orchard.hardware import ROOT as HARDWARE, revision as orchard_revision
+from snapshot import command as orchard_command, root as orchard_root, sha
 
 PROJECT = Path(__file__).resolve().parent
 POLICY = PROJECT / 'system/image_policy.py'
@@ -35,20 +34,16 @@ def verify_inputs(path):
     return result, spec
 
 
-def kernels(selected=None, explicit=()):
-    """{platform: staged kernel bundle}: every platform (or SELECTED), from --kernel-dir or orchard's cache."""
-    from orchard.image import platform
-    known = platform.platforms()
+def kernels(resolved, explicit=()):
+    """{platform: staged kernel bundle} of orchard.inputs' RESOLVED platforms; --kernel-dir overrides one."""
+    known = resolved['platforms']
     given = {}
     for value in explicit:
         name, separator, path = value.partition('=')
         if not separator or name not in known:
             raise ValueError(f'Use --kernel-dir PLATFORM=DIRECTORY with a platform of: {", ".join(known)}')
         given[name] = Path(path)
-    unknown = sorted(set(selected or ()) - set(known))
-    if unknown:
-        raise ValueError(f'Unknown platform {", ".join(unknown)}; known: {", ".join(known)}')
-    return {name: given.get(name) or platform.kernel(name) for name in (selected or known)}
+    return {name: given.get(name) or Path(row['kernel']) for name, row in known.items()}
 
 
 def overlay():
@@ -63,13 +58,12 @@ def overlay():
     return result
 
 
-def root_archive(base, base_receipt, components, output, version):
+def root_archive(base, base_receipt, components, output, version, hardware):
     receipt = json.loads(base_receipt.read_text())
     if base.is_symlink() or base.stat().st_size != receipt['bytes'] or sha(base) != receipt['sha256']:
         raise ValueError('Alpine base differs from receipt')
     additions = overlay()
     additions['usr/libexec/minimal-linux/image_policy.py'] = (POLICY.read_bytes(), 0o644)
-    hardware = HARDWARE
     for source, target in (('busybox', 'usr/libexec/minimal-linux/busybox'),
                            ('dropbear', 'usr/sbin/dropbear'), ('dropbearkey', 'usr/bin/dropbearkey')):
         additions[target] = (components[source].read_bytes(), 0o755)
@@ -197,52 +191,55 @@ def manifests(output, version, root, platforms, orchard):
     return path
 
 
-def recovery(output, base, base_receipt, components, platform_name, bundle):
+def recovery(orchard, output, base, base_receipt, components, platform_name, bundle, boards):
     """The platform's RAM recovery, which starts every board of it."""
-    from orchard.image import platform
-    dtbs = [bundle / 'dtbs' / (dtb + '.dtb') for dtb in sorted(set(platform.boards(platform_name).values()))]
+    dtbs = [bundle / 'dtbs' / (dtb + '.dtb') for dtb in sorted(set(boards.values()))]
     image = output / f'recovery-{platform_name}.bin'
-    command = [sys.executable, '-m', 'orchard.image.recovery', *(f'--dtb={path}' for path in dtbs),
+    command = [*(f'--dtb={path}' for path in dtbs),
                '--base', str(base), '--base-receipt', str(base_receipt),
                '--kernel', str(bundle / 'Image.gz'), '--modules-dir', str(bundle / 'lib/modules')]
     for name in ('loader', 'busybox', 'dropbear', 'dropbearkey', 'wpa_supplicant', 'wpa_cli', 'iw'):
         command += ['--' + name.replace('_', '-'), str(components[name])]
     command += ['--logo', str(components['logo'])]  # the Alpine mark, drawn by orchard's m1n1
     command += ['--root-receipt', str(output / 'rootfs.json'), '--output', str(image)]
-    subprocess.run(command, check=True)
+    orchard_command(orchard, 'image.recovery', *command)
     return image
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-    for name in ('base', 'base-receipt', 'inputs', 'output'):
+    for name in ('base', 'base-receipt', 'inputs', 'orchard-inputs', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--version', required=True)
+    parser.add_argument('--orchard', type=Path, help='orchard snapshot (default: ORCHARD_CHECKOUT, then .orchard)')
     parser.add_argument('--kernel-dir', action='append', default=[], metavar='PLATFORM=DIRECTORY',
-                        help="a platform's staged kernel bundle; repeat; others come from orchard's cache")
-    parser.add_argument('--platform', action='append',
-                        help='only this platform (repeat); for development, a release covers every platform')
+                        help="a platform's staged kernel bundle instead of the one orchard.inputs names")
     args = parser.parse_args()
     if args.output.exists() or args.output.is_symlink():
         parser.error('Choose a new output directory')
+    orchard = orchard_root(args.orchard)
     components, inputs = verify_inputs(args.inputs)
+    resolved = json.loads(args.orchard_inputs.read_text())
     try:
-        bundles = kernels(args.platform, args.kernel_dir)
+        bundles = kernels(resolved, args.kernel_dir)
     except ValueError as error:
         parser.error(str(error))
-    from orchard.image import platform
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.minimal-build-', dir=args.output.parent) as temp:
         output = Path(temp) / 'release'
         output.mkdir()
-        root = root_archive(args.base, args.base_receipt, components, output, args.version)
+        root = root_archive(args.base, args.base_receipt, components, output, args.version, orchard)
         platforms = {}
         for name, bundle in bundles.items():
-            layer = platform.build(name, output, bundle=bundle, busybox=components['busybox'])
-            image = recovery(output, args.base, args.base_receipt, components, name, bundle)
+            layer_receipt = Path(temp) / f'layer-{name}.json'
+            orchard_command(orchard, 'image.platform', name, '--output', output, '--kernel-dir', bundle,
+                            '--busybox', components['busybox'], '--receipt', layer_receipt, stdout=subprocess.DEVNULL)
+            layer = json.loads(layer_receipt.read_text())
+            image = recovery(orchard, output, args.base, args.base_receipt, components, name, bundle,
+                             resolved['platforms'][name]['boards'])
             platforms[name] = {'boards': layer.pop('boards'), 'layer': layer, 'boot': receipt(image)}
         shutil.copyfile(components['pongo'], output / 'pongo.bin')
-        revision = orchard_revision()
+        revision = resolved['orchard']
         manifests(output, args.version, root, platforms, revision)
         public_inputs = {**inputs, 'files': {name: {k: v for k, v in row.items() if k != 'path'}
                                              for name, row in inputs['files'].items()}}

@@ -39,46 +39,39 @@ uses that orchard's environment. Container package
 downloads remain separate from the IPSW/device-firmware cache. Full Alpine image
 assembly below is owned by this repository; it is not an `orchard build` special case.
 
-## Public inputs
+## Without orchard's tool
 
-Build the distro-branded loader and static BusyBox/Dropbear tools using the
-[orchard producers](https://github.com/OrchardLinux/orchard/blob/main/BUILD.md)
-and this image's [boot producers](boot/README.md). Verify their receipts before pinning.
-Pongo is not built here: use orchard's one Pongo, `quiet/pongo.bin` from the
-orchard component bundle (black screen; the Alpine logo appears with m1n1).
-
-The component copier pins them as independent copies with a per-file hash
-inventory, refusing links and existing output paths. Kernels are not pinned
-there: a release covers every platform, and `build.py` builds or reuses each
-platform's kernel through orchard's shared cache (the same builder as `orchard
-build` in orchard's examples), or takes `--kernel-dir PLATFORM=DIRECTORY` per
-platform (CI, orchard's per-platform component bundles). `--platform PLATFORM`
-builds fewer platforms, for development only.
+The build imports none of orchard's Python: it runs orchard's producers as
+commands from an orchard snapshot (orchard's
+[distribution contract](https://github.com/OrchardLinux/orchard/blob/main/docs/distribution-contract.md)).
+`orchard build` passes its own; by hand, take an orchard checkout or a
+release's `orchard-source.tar.gz` unpacked as `ORCHARD`. `snapshot.py` holds
+the few lines that find it and run its commands.
 
 ```sh
-orchard python pin_components.py \
-  --loader /absolute/path/m1n1.bin --pongo /absolute/path/quiet/pongo.bin \
-  --busybox /absolute/path/busybox --dropbear /absolute/path/dropbear \
-  --dropbearkey /absolute/path/dropbearkey --wpa-supplicant /absolute/path/wpa_supplicant \
-  --wpa-cli /absolute/path/wpa_cli --iw /absolute/path/iw --output out/components/public
-```
-
-This tool records selected input hashes; it is not a signature/trust service.
-
-## Base and coherent release
-
-From this directory, with the editable workspace dependencies:
-
-```sh
-orchard python build_base.py --output out/components/base.tar.gz
-orchard python build.py \
-  --base out/components/base.tar.gz \
-  --base-receipt out/components/base.tar.gz.json \
-  --inputs out/components/public/inputs.json \
+export ORCHARD=/path/to/orchard PYTHONPATH=/path/to/orchard/src
+python3 boot/build-artwork.py --output out/artwork
+python3 build_base.py --output out/base/base.tar.gz
+# What orchard supplies finished: kernels and boards per platform, m1n1, Pongo, tools.
+python3 -m orchard.inputs --output out/orchard-inputs.json --platform apple-16k
+python3 pin_components.py --loader M1N1 --splash out/artwork/splash --logo out/artwork/logo.bin \
+  --pongo PONGO --busybox … --dropbear … --dropbearkey … --wpa-supplicant … --wpa-cli … --iw … \
+  --output out/public          # M1N1, PONGO, the tools: the paths orchard-inputs.json names
+python3 build.py --base out/base/base.tar.gz --base-receipt out/base/base.tar.gz.json \
+  --inputs out/public/inputs.json --orchard-inputs out/orchard-inputs.json --orchard "$ORCHARD" \
   --version YOUR_NEW_VERSION --output out/releases/YOUR_NEW_VERSION
-orchard python audit.py out/releases/YOUR_NEW_VERSION
-orchard python -m orchard.manifests --verify-local out/releases/YOUR_NEW_VERSION/index.toml
+python3 audit.py out/releases/YOUR_NEW_VERSION --orchard "$ORCHARD"
+python3 -m orchard.manifests --verify-local out/releases/YOUR_NEW_VERSION/index.toml
+python3 -m orchard.installer release out/releases/YOUR_NEW_VERSION
 ```
+
+`orchard.inputs` takes the nightly's kernels, m1n1 and tools when they were
+built from the snapshot's files, and builds them otherwise; given
+`--kernel-dir PLATFORM=DIR`, `--m1n1`, `--pongo` and `--tools` (CI, from
+orchard's component bundles) it uses those as they are. Pongo is never built
+here: it is orchard's one Pongo (black screen; the Alpine logo appears with
+m1n1). `pin_components.py` records the selected inputs' hashes; it is not a
+signature or trust service.
 
 Use fresh output paths; producers refuse overwriting. The official Alpine OCI digest is pinned in `system/Containerfile`; APK repositories retain signature checking. The base records package versions in `/etc/alpine-packages.lock`. Its archive hash and all selected hardware hashes are recorded separately from the install contract. The APK mirror is not an immutable snapshot: future base rebuilds may select newer signed package revisions and must get new receipts.
 

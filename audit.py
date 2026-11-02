@@ -10,8 +10,9 @@ import struct
 import tarfile
 import tomllib
 
-from orchard.image.integrity import sha
-from orchard.hardware import ROOT as HARDWARE
+from snapshot import root as orchard_root, sha
+
+HARDWARE = None  # the orchard snapshot; main() sets it, else orchard_root() finds it
 
 
 def newc(data):
@@ -86,7 +87,7 @@ def audit_recovery(image, release, kernel_release, layer):
             assert len(payload) == row['bytes'] and hashlib.sha256(payload).hexdigest() == row['sha256']
             dtbs += row['name'] == 'dtb'
             components[row['name']] = payload
-    profile = HARDWARE / 'boot/initramfs/recovery/boot.json'
+    profile = (HARDWARE or orchard_root()) / 'boot/initramfs/recovery/boot.json'  # the snapshot's tested profile
     assert components['bootargs'] == json.loads(profile.read_text())['bootargs'].encode(), 'Recovery must preserve the tested standard boot profile'
     recovery = newc(gzip.decompress(components['initramfs']))
     config = json.loads(recovery['etc/orchard/release.json'][0])
@@ -182,7 +183,9 @@ def audit(directory):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
+    parser.add_argument('--orchard', type=Path, help='orchard snapshot (default: ORCHARD_CHECKOUT, then .orchard)')
     args = parser.parse_args()
+    HARDWARE = orchard_root(args.orchard)
     result = audit(args.directory)
     (args.directory / 'audit.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))

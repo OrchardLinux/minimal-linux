@@ -13,7 +13,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from orchard.image.integrity import sha
+from snapshot import sha
 
 ROLES = ('loader', 'splash', 'logo', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw')
 

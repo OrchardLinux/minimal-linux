@@ -23,7 +23,7 @@ permissions:
   contents: read
   actions: read
 env:
-  HARDWARE_TAG: ${{ inputs.hardware_tag || 'v0.2.0' }}
+  HARDWARE_TAG: ${{ inputs.hardware_tag || 'nightly' }}
   HARDWARE_ARTIFACT_DIR: ${{ inputs.hardware_run_id != '' && 'out/downloads/hardware' || '' }}
 jobs:
   orchard:
@@ -208,9 +208,13 @@ jobs:
             --busybox "$tools/boot/busybox" --dropbear "$tools/boot/dropbear" \
             --dropbearkey "$tools/boot/dropbearkey" --wpa-supplicant "$tools/boot/wpa_supplicant" \
             --wpa-cli "$tools/boot/wpa_cli" --iw "$tools/boot/iw" --output out/inputs
+          # What orchard supplies, from its bundles as they are: nothing is fetched or built.
+          python -m orchard.inputs --output out/orchard-inputs.json "${kernels[@]}" \
+            --m1n1 "$tools/quiet/m1n1.bin" --pongo "$tools/quiet/pongo.bin" --tools "$tools/boot"
           python build.py --base out/base/base.tar.gz --base-receipt out/base/base.tar.gz.json \
-            --inputs out/inputs/inputs.json --version "$VERSION" --output out/release "${kernels[@]}"
-          python audit.py out/release
+            --inputs out/inputs/inputs.json --orchard-inputs out/orchard-inputs.json --orchard .orchard \
+            --version "$VERSION" --output out/release
+          python audit.py out/release --orchard .orchard
           python -m orchard.manifests --verify-local out/release/index.toml
           # The installer: install.sh and orchard-install.pyz with orchard's launch loaders.
           python -m orchard.installer release out/release \

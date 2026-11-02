@@ -8,15 +8,15 @@ orchard supplies m1n1, Pongo, the static tools and every platform's kernel
 from its shared cache; the Alpine artwork is data for orchard's m1n1. The release itself is always assembled anew.
 """
 import argparse
+import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 
-from orchard.distro import component
-from orchard.build import prepare_shared
-
 PROJECT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT))
+import snapshot  # noqa: E402  orchard's snapshot and commands; none of its Python
 # What each component is made from, relative to this checkout.
 INPUTS = {
     'base': ['build_base.py', 'system/Containerfile', 'system/install-base'],
@@ -35,32 +35,38 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--platform', action='append', default=[],
                         help='build this platform (repeat), or all; orchard passes the selection')
+    parser.add_argument('--orchard', type=Path, help='orchard snapshot (default: ORCHARD_CHECKOUT, then .orchard)')
     args = parser.parse_args()
+    orchard = snapshot.root(args.orchard)
     if 'all' in args.platform and len(args.platform) > 1:
         parser.error('--platform all builds every platform and combines with no other')
     # The release builder builds every platform when it is given none.
     selected = [part for name in args.platform if name != 'all' for part in ('--platform', name)]
 
-    base, _ = component(PROJECT, 'base', INPUTS['base'],
-                        lambda path, work: python('build_base.py', '--output', path), artifact='base.tar.gz')
-    artwork, _ = component(PROJECT, 'artwork', INPUTS['artwork'],
-                           lambda path, work: python('boot/build-artwork.py', '--output', path), artifact='artwork')
-    shared = prepare_shared()
-    tools = shared['tools']
+    base = snapshot.component('base', INPUTS['base'],
+                              lambda path, work: python('build_base.py', '--output', path), artifact='base.tar.gz')
+    artwork = snapshot.component('artwork', INPUTS['artwork'],
+                                 lambda path, work: python('boot/build-artwork.py', '--output', path),
+                                 artifact='artwork')
     (PROJECT / 'out').mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.inputs-', dir=PROJECT / 'out') as temporary:
+        # What orchard supplies finished: kernels, boards, m1n1, Pongo, tools (orchard.inputs).
+        resolved = Path(temporary) / 'orchard-inputs.json'
+        snapshot.command(orchard, 'inputs', '--output', resolved, *selected)
+        shared = json.loads(resolved.read_text())['shared']
+        tools = {name: Path(path) for name, path in shared['tools'].items()}
         inputs = Path(temporary) / 'public'
-        python('pin_components.py', '--loader', shared['loader'], '--splash', artwork / 'splash',
+        python('pin_components.py', '--loader', shared['m1n1'], '--splash', artwork / 'splash',
                '--logo', artwork / 'logo.bin', '--pongo', shared['pongo'],
-               '--busybox', tools / 'busybox', '--dropbear', tools / 'dropbear', '--dropbearkey', tools / 'dropbearkey',
-               '--wpa-supplicant', tools / 'wpa_supplicant', '--wpa-cli', tools / 'wpa_cli', '--iw', tools / 'iw',
+               '--busybox', tools['busybox'], '--dropbear', tools['dropbear'], '--dropbearkey', tools['dropbearkey'],
+               '--wpa-supplicant', tools['wpa_supplicant'], '--wpa-cli', tools['wpa_cli'], '--iw', tools['iw'],
                '--output', inputs)
         python('build.py', '--base', base, '--base-receipt', base.with_name(base.name + '.json'),
-               '--inputs', inputs / 'inputs.json', '--version', args.version, *selected,
-               '--output', args.output)
-    python('audit.py', args.output)
-    # install.sh and orchard-install.pyz, with orchard's launch loaders from its cache.
-    python('-m', 'orchard.installer', 'release', args.output)
+               '--inputs', inputs / 'inputs.json', '--orchard-inputs', resolved, '--orchard', orchard,
+               '--version', args.version, '--output', args.output)
+    python('audit.py', args.output, '--orchard', orchard)
+    # install.sh and orchard-install.pyz, with orchard's launch loaders.
+    snapshot.command(orchard, 'installer', 'release', args.output)
 
 
 if __name__ == '__main__':
