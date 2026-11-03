@@ -6,6 +6,8 @@ orchard runs it as `tools/build.py --version VERSION --output DIRECTORY
 by the files they are made from, so a build redoes only what changed.
 orchard supplies m1n1, Pongo, the static tools and every platform's kernel
 from its shared cache; the Alpine artwork is data for orchard's m1n1. The release itself is always assembled anew.
+How orchard got them (built, reused, or downloaded from a nightly) stays in
+out/releases/VERSION.orchard-inputs.json, beside the release.
 """
 import argparse
 import json
@@ -49,9 +51,11 @@ def main():
                                  lambda path, work: python('boot/build-artwork.py', '--output', path),
                                  artifact='artwork')
     (PROJECT / 'out').mkdir(exist_ok=True)
+    # What orchard supplies finished: kernels, boards, m1n1, Pongo, tools (orchard.inputs). Kept beside the
+    # release, not in it (its paths are this host's): under "produced" it says how orchard got each one.
+    resolved = args.output.parent / f'{args.output.name}.orchard-inputs.json'
+    resolved.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.inputs-', dir=PROJECT / 'out') as temporary:
-        # What orchard supplies finished: kernels, boards, m1n1, Pongo, tools (orchard.inputs).
-        resolved = Path(temporary) / 'orchard-inputs.json'
         snapshot.command(orchard, 'inputs', '--output', resolved, *selected)
         shared = json.loads(resolved.read_text())['shared']
         tools = {name: Path(path) for name, path in shared['tools'].items()}
