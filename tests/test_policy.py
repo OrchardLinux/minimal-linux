@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('minimal_policy', HERE / 'image/j71b/image_policy.py')
+spec = importlib.util.spec_from_file_location('minimal_policy', HERE / 'system/image_policy.py')
 policy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(policy)
 
@@ -17,18 +17,17 @@ class Readiness(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name in ('RECORD', 'BOOT_ID', 'CONFIG', 'INSTALLED', 'STARTED'):
+        for name in ('RECORD', 'BOOT_ID', 'CONFIG', 'STARTED'):
             p = patch.object(policy, name, self.root / name)
             p.start()
             self.addCleanup(p.stop)
         policy.BOOT_ID.write_text('current-boot\n')
         policy.CONFIG.write_text(json.dumps({'release': 'test'}))
-        policy.INSTALLED.write_text(json.dumps({'release': 'test'}))
         policy.STARTED.mkdir()
         for service in policy.SERVICES:
             (policy.STARTED / service).touch()
         self.record = {'release': 'test', 'boot_id': 'current-boot',
-                       'diagnostics_pid': 2, 'dhcp_pid': 4, 'buttons_pid': 5}
+                       'ssh_pid': 2, 'usb_pid': 4, 'buttons_pid': 5}
         self.save()
         # Tests run on macOS as an unprivileged developer. Root metadata and
         # live Linux executables are checked separately in the native image.
@@ -46,13 +45,9 @@ class Readiness(unittest.TestCase):
         self.assertTrue(policy.ready())
         self.assertEqual(self.process.call_count, 4)
 
-    def test_revoked_ssh_does_not_remove_hardware_readiness(self):
-        (policy.STARTED / 'orchard-diagnostics').unlink()
+    def test_no_ssh_server_is_not_ready(self):
         self.process.side_effect = lambda pid, exe: pid != 2
         self.assertFalse(policy.ready())
-        self.assertTrue(policy.ready(ssh_revoked=True))
-        (policy.STARTED / 'orchard-dhcp').unlink()
-        self.assertFalse(policy.ready(ssh_revoked=True))
 
     def test_prior_boot_is_not_ready(self):
         self.record['boot_id'] = 'previous-boot'
@@ -64,12 +59,12 @@ class Readiness(unittest.TestCase):
         self.save()
         self.assertFalse(policy.ready())
 
-    def test_different_installed_root_is_not_ready(self):
-        policy.INSTALLED.write_text('{"release":"other"}')
+    def test_different_installed_release_is_not_ready(self):
+        policy.CONFIG.write_text('{"release":"other"}')
         self.assertFalse(policy.ready())
 
     def test_missing_service_is_not_ready(self):
-        (policy.STARTED / 'orchard-dhcp').unlink()
+        (policy.STARTED / 'orchard-usb').unlink()
         self.assertFalse(policy.ready())
 
     def test_dead_or_different_process_is_not_ready(self):

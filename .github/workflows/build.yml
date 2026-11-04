@@ -7,42 +7,46 @@ on:
   workflow_dispatch:
     inputs:
       hardware_tag:
-        description: Published hardware components and wheel
+        description: Published orchard release supplying the compiled components
         required: true
-        default: v0.1.10
-      cli_tag:
-        description: Published compatible CLI wheel requirements
-        required: true
-        default: v0.1.10
-      cli_run_id:
-        description: Optional exact CLI run for first-release wheel reuse
-        required: false
+        default: v0.2.0
       hardware_run_id:
         description: Optional exact hardware run supplying first-release components
         required: false
       reuse_base_run_id:
         description: Exact prior run supplying the unchanged Alpine base
         required: false
-      reuse_pongo_run_id:
-        description: Exact prior run supplying unchanged branded Pongo and artwork
-        required: false
-      reuse_loader_run_id:
-        description: Exact prior run supplying the tested unchanged loader
+      reuse_artwork_run_id:
+        description: Exact prior run supplying the unchanged boot artwork
         required: false
 permissions:
   contents: read
   actions: read
 env:
-  HARDWARE_TAG: ${{ inputs.hardware_tag || 'v0.1.10' }}
-  CLI_TAG: ${{ inputs.cli_tag || 'v0.1.10' }}
-  CLI_ARTIFACT_DIR: ${{ inputs.cli_run_id != '' && 'out/dependency-wheels' || '' }}
+  HARDWARE_TAG: ${{ inputs.hardware_tag || 'nightly' }}
   HARDWARE_ARTIFACT_DIR: ${{ inputs.hardware_run_id != '' && 'out/downloads/hardware' || '' }}
 jobs:
+  orchard:
+    # The orchard version this run builds with, resolved once for every job:
+    # nightly becomes the newest nightly-YYYYMMDD-COMMIT, a tag stays as it is.
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - id: resolve
+        run: |
+          tag="$HARDWARE_TAG"
+          if [[ "$tag" == nightly ]]; then
+            tag=$(curl -fsSL --retry 3 https://github.com/OrchardLinux/orchard/releases/download/nightly/latest.json |
+              python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])')
+          fi
+          echo "orchard $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
   test:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        python: ['3.9', '3.12']
+        python: ['3.11', '3.14']
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,125 +59,54 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: '[[ "$TAG" =~ ^v[A-Za-z0-9][A-Za-z0-9._-]*$ ]]'
-      - name: Reuse the tested first-release wheel pair
-        if: inputs.cli_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-wheel-pair
-          path: out/dependency-wheels
-          repository: OrchardLinux/cli
-          run-id: ${{ inputs.cli_run_id }}
-          github-token: ${{ github.token }}
-      - run: bash ci/dependencies --wheels-only
+      # Tests follow orchard main; builds use the pinned orchard release (ci/dependencies).
+      - run: bash ci/dependencies --tools-only
+        env:
+          ORCHARD_REF: main
       - run: .venv/bin/python -m unittest discover -s tests -v
-  pongo:
+  # Pongo is not built here: releases ship hardware's one Pongo (quiet/pongo.bin).
+  artwork:
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
-      - name: Reuse the unchanged branded Pongo and artwork
-        if: inputs.reuse_pongo_run_id != ''
+      - name: Reuse the unchanged boot artwork
+        if: inputs.reuse_artwork_run_id != ''
         uses: actions/download-artifact@v4
         with:
           name: minimal-boot-inputs
           path: out
-          run-id: ${{ inputs.reuse_pongo_run_id }}
+          run-id: ${{ inputs.reuse_artwork_run_id }}
           github-token: ${{ github.token }}
       - uses: actions/checkout@v4
-        if: inputs.reuse_pongo_run_id == ''
+        if: inputs.reuse_artwork_run_id == ''
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
-        if: inputs.reuse_pongo_run_id == ''
+        if: inputs.reuse_artwork_run_id == ''
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: brew install imagemagick librsvg
-        if: inputs.reuse_pongo_run_id == ''
-      - name: Build branded Pongo and matching loader artwork
-        if: inputs.reuse_pongo_run_id == ''
+        if: inputs.reuse_artwork_run_id == ''
+      - name: Generate the boot artwork, data for orchard's m1n1
+        if: inputs.reuse_artwork_run_id == ''
         run: |
-          python boot/build-pongo.py --output out/boot/pongo.bin
           python boot/generate-logo.py --output out/boot/alpine-logo.h
-          python boot/pongo/test-renderer.py
+          python boot/build-artwork.py --logo-header out/boot/alpine-logo.h --output out/boot/artwork
           tar -C out -czf out/boot-inputs.tar.gz boot
-          tar -C boot/pongo/.work/source --exclude=.git -czf out/pongo-source.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
           name: minimal-boot-inputs
-          path: |
-            out/boot-inputs.tar.gz
-            out/pongo-source.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 2
-  loader:
-    needs: pongo
-    runs-on: ubuntu-24.04-arm
-    container: debian:bookworm
-    timeout-minutes: 90
-    defaults:
-      run:
-        shell: bash
-    env:
-      ORCHARD_BUILD_NATIVE: '1'
-      ORCHARD_BUILD_ENV_ID: debian-bookworm-arm64-llvm19-rust1.90.0
-      RUSTUP_TOOLCHAIN: '1.90.0'
-    steps:
-      - name: Reuse the tested unchanged loader
-        if: inputs.reuse_loader_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: minimal-loader
-          path: out
-          run-id: ${{ inputs.reuse_loader_run_id }}
-          github-token: ${{ github.token }}
-      - run: apt-get update && apt-get install -y git curl ca-certificates python3 python3-venv
-        if: inputs.reuse_loader_run_id == ''
-      - uses: actions/checkout@v4
-        if: inputs.reuse_loader_run_id == ''
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@v4
-        if: inputs.reuse_loader_run_id == ''
-        with:
-          name: minimal-boot-inputs
-          path: out/downloads
-      - name: Reuse the tested first-release wheel pair
-        if: inputs.reuse_loader_run_id == '' && inputs.cli_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-wheel-pair
-          path: out/dependency-wheels
-          repository: OrchardLinux/cli
-          run-id: ${{ inputs.cli_run_id }}
-          github-token: ${{ github.token }}
-      - if: inputs.reuse_loader_run_id == ''
-        run: |
-          bash ci/dependencies --wheels-only
-          HW=$(.venv/bin/python -c 'from pathlib import Path; import orchard_hardware; print(Path(orchard_hardware.__file__).parent)')
-          bash "$HW/boot/m1n1/install-toolchain"
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
-          tar -xzf out/downloads/boot-inputs.tar.gz -C out
-      - name: Build branded loader with the shared recipe
-        if: inputs.reuse_loader_run_id == ''
-        run: |
-          python boot/build-loader.py --logo-header out/boot/alpine-logo.h --output out/boot/m1n1.bin
-          mkdir -p boot/pongo/.work/source
-          tar -C boot/pongo/.work/source -xzf out/downloads/pongo-source.tar.gz ./src/drivers/framebuffer/alpine-logo.h
-          python boot/m1n1/test-splash.py
-          tar -C out -czf out/distro-boot.tar.gz boot
-      - uses: actions/upload-artifact@v4
-        with:
-          name: minimal-loader
-          path: out/distro-boot.tar.gz
+          path: out/boot-inputs.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 2
   base:
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
-    needs: test
+    needs: [test, orchard]
+    env:
+      HARDWARE_TAG: ${{ needs.orchard.outputs.tag }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -192,19 +125,10 @@ jobs:
       - uses: actions/setup-python@v5
         if: inputs.reuse_base_run_id == ''
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: sudo apt-get update && sudo apt-get install -y skopeo umoci
         if: inputs.reuse_base_run_id == ''
-      - name: Reuse the tested first-release wheel pair
-        if: inputs.reuse_base_run_id == '' && inputs.cli_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-wheel-pair
-          path: out/dependency-wheels
-          repository: OrchardLinux/cli
-          run-id: ${{ inputs.cli_run_id }}
-          github-token: ${{ github.token }}
-      - run: bash ci/dependencies --wheels-only
+      - run: bash ci/dependencies --tools-only
         if: inputs.reuse_base_run_id == ''
       - name: Build the pinned Alpine base without a container daemon
         if: inputs.reuse_base_run_id == ''
@@ -220,7 +144,9 @@ jobs:
           if-no-files-found: error
           retention-days: 2
   assets:
-    needs: [test, pongo, loader, base]
+    needs: [test, orchard, artwork, base]
+    env:
+      HARDWARE_TAG: ${{ needs.orchard.outputs.tag }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -234,21 +160,12 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - uses: actions/download-artifact@v4
         with:
           pattern: minimal-*
           path: out/downloads
           merge-multiple: true
-      - name: Reuse the tested first-release wheel pair
-        if: inputs.cli_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-wheel-pair
-          path: out/dependency-wheels
-          repository: OrchardLinux/cli
-          run-id: ${{ inputs.cli_run_id }}
-          github-token: ${{ github.token }}
       - name: Await the exact hardware run without rebuilding components
         if: inputs.hardware_run_id != ''
         env:
@@ -256,14 +173,14 @@ jobs:
           HARDWARE_RUN_ID: ${{ inputs.hardware_run_id }}
         run: |
           [[ "$HARDWARE_RUN_ID" =~ ^[0-9]+$ ]]
-          gh run watch "$HARDWARE_RUN_ID" --repo OrchardLinux/hardware --interval 20 --exit-status
+          gh run watch "$HARDWARE_RUN_ID" --repo OrchardLinux/orchard --interval 20 --exit-status
       - name: Reuse verified first-release components
         if: inputs.hardware_run_id != ''
         uses: actions/download-artifact@v4
         with:
-          name: hardware-release-assets
+          name: orchard-release-assets
           path: out/downloads/hardware
-          repository: OrchardLinux/hardware
+          repository: OrchardLinux/orchard
           run-id: ${{ inputs.hardware_run_id }}
           github-token: ${{ github.token }}
       - run: bash ci/dependencies
@@ -275,23 +192,36 @@ jobs:
         run: |
           . .venv/bin/activate
           tar -xzf out/downloads/alpine-base.tar.gz -C out
-          tar -xzf out/downloads/distro-boot.tar.gz -C out
+          tar -xzf out/downloads/boot-inputs.tar.gz -C out
           VERSION="preview-$RUN_ID"
           TAG="v$VERSION"
           if [[ "$REF_TYPE" == tag ]]; then TAG="$REF_NAME"; VERSION="${TAG#v}"; fi
-          python pin_components.py --loader out/boot/m1n1.bin --pongo out/boot/pongo.bin \
-            --kernel out/components/kernel/Image.gz --dtb out/components/kernel/j71b.dtb \
-            --modules-dir out/components/kernel/lib/modules --busybox out/components/boot/busybox \
-            --dropbear out/components/boot/dropbear --dropbearkey out/components/boot/dropbearkey \
-            --output out/inputs
+          # Every platform's kernel from orchard's bundles; the shared tools are in each.
+          kernels=()
+          for bundle in out/platforms/*/components; do
+            kernels+=(--kernel-dir "$(basename "$(dirname "$bundle")")=$bundle/kernel")
+          done
+          tools=out/platforms/apple-16k/components
+          # orchard's m1n1; the Alpine artwork is its data.
+          python pin_components.py --loader "$tools/quiet/m1n1.bin" --splash out/boot/artwork/splash \
+            --logo out/boot/artwork/logo.bin --pongo "$tools/quiet/pongo.bin" \
+            --busybox "$tools/boot/busybox" --dropbear "$tools/boot/dropbear" \
+            --dropbearkey "$tools/boot/dropbearkey" --wpa-supplicant "$tools/boot/wpa_supplicant" \
+            --wpa-cli "$tools/boot/wpa_cli" --iw "$tools/boot/iw" --output out/inputs
+          # What orchard supplies, from its bundles as they are: nothing is fetched or built.
+          python -m orchard.inputs --output out/orchard-inputs.json "${kernels[@]}" \
+            --m1n1 "$tools/quiet/m1n1.bin" --pongo "$tools/quiet/pongo.bin" --tools "$tools/boot"
           python build.py --base out/base/base.tar.gz --base-receipt out/base/base.tar.gz.json \
-            --inputs out/inputs/inputs.json --version "$VERSION" --output out/release
-          python audit.py out/release
-          orchard resolve out/release/index.toml
-          python -m orchard_hardware.image.publish --distro minimal-linux --tag "$TAG" \
+            --inputs out/inputs/inputs.json --orchard-inputs out/orchard-inputs.json --orchard .orchard \
+            --version "$VERSION" --output out/release
+          python audit.py out/release --orchard .orchard
+          python -m orchard.manifests --verify-local out/release/index.toml
+          # The installer: install.sh and orchard-install.pyz with orchard's launch loaders.
+          python -m orchard.installer release out/release \
+            --pongo "$tools/quiet/pongo.bin" --m1n1 "$tools/quiet/m1n1.bin"
+          python -m orchard.image.publish --distro minimal-linux --tag "$TAG" \
             --release-dir out/release --output out/publication
           cp out/release/rootfs.json out/release/build-receipt.json out/base/* out/publication/
-          cp out/downloads/pongo-source.tar.gz out/publication/
           git archive --format=tar.gz -o out/publication/minimal-linux-source.tar.gz HEAD
           (cd out/publication && sha256sum ./* > ../SHA256SUMS && mv ../SHA256SUMS .)
       - name: Attest public build

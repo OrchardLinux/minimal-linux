@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
-apk add --no-cache openrc python3 bash kmod util-linux e2fsprogs openssh-client-default merge-usr
+apk add --no-cache openrc python3 bash kmod util-linux e2fsprogs openssh-client-default merge-usr \
+  shadow openssl
+# The one regular user; orchard's installer sets its password (chpasswd).
+useradd --create-home --uid 1000 --user-group --shell /bin/bash tablet
 merge-usr --dryrun
 merge-usr
 apk del merge-usr

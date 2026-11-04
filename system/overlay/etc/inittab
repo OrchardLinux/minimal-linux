@@ -4,4 +4,6 @@
 ::sysinit:/sbin/openrc boot
 ::wait:/sbin/openrc default
 tty1::respawn:/sbin/getty 38400 tty1
+# USB serial console of orchard's gadget (screen /dev/cu.usbmodem* on the host).
+ttyGS0::respawn:/sbin/getty -L 115200 ttyGS0 vt100
 ::shutdown:/sbin/openrc shutdown

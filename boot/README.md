@@ -6,22 +6,17 @@ Alpine artwork and display presentation are owned by this image. Shared hardware
 
 `artwork/upstream-alpinelinux-logo.svg` is pinned to the Alpine project's repository revision recorded in `artwork/source.json`. `alpine-mark.svg` isolates the official mountain/hex mark and places white behind its transparent mountain cutouts for use on black. Alpine blue `#0d597f` and the original mark paths are retained. Alpine trademarks belong to their owners; this does not imply endorsement.
 
-`generate-logo.py` produces independent blue/white one-bit planes, not a shared global brand. Both stages use the same 400-pixel canvas from `artwork/presentation.json`;  their generated headers are required to match byte-for-byte. The exact C renderers are tested with ASan/UBSan: six Pongo stride/geometry cases and twelve m1n1 geometry/depth cases, including padding, small displays, 30/32-bit conversion and one-time publication.
+`generate-logo.py` produces independent blue/white one-bit planes on the 400-pixel canvas from `artwork/presentation.json`; `splash.py` turns them into orchard's boot splash, which m1n1 paints for an installed boot entry. The recovery shows the same mark as m1n1's custom logo (`logo.bin`: RGBA on black, 256×256 and 128×128), which orchard's assembly puts directly after m1n1. This image builds no m1n1 of its own: it is orchard's, with the artwork as data. Pongo, which runs before m1n1, is orchard's one Pongo and keeps the screen black.
 
 ## Build
 
-Requires Python, Git, `rsvg-convert`, ImageMagick, native make/C tools and Xcode with an iPhoneOS SDK for Pongo; Podman and the installed `orchard-hardware>=0.1.10,<0.2` producer/toolchain for m1n1.
+Requires Python, `rsvg-convert` and ImageMagick; no m1n1 or C toolchain.
 
 ```sh
-python boot/build-pongo.py --output out/branding/Pongo-alpine.bin
-python boot/build-loader.py --output out/branding/m1n1-alpine.bin
-python boot/pongo/test-renderer.py
-python boot/m1n1/test-splash.py
+python boot/build-artwork.py --output out/artwork   # out/artwork/splash, out/artwork/logo.bin
 ```
 
-Use `--resume` only with the matching pinned, patched worktree; choose new output paths. Each producer refuses overwriting. Pongo/newlib revisions are pinned in the build scripts. m1n1 consumes the installed package's OrchardLinux upstream pin and hardware patches, with this distro's explicit extra patch/header/flags. `--work-dir` keeps the loader checkout/cache under this consumer instead of coupling consumers through an installed-package worktree.
-
-Pin the newly built binaries as explicit loader/Pongo inputs with `pin_components.py`.
+Each output directory must be new. `tools/build.py` (the `orchard build` entry) runs it as a keyed component and pins the result with orchard's m1n1 and Pongo (`pin_components.py`).
 
 ## Readiness clear
 

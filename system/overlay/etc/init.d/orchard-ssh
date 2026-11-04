@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+description="SSH on every interface; keys only (the installer imports the computer's)"
+command="/usr/sbin/dropbear"
+# -R: host keys generated on first boot into /etc/dropbear and kept.
+# -s -g: no password logins. -W: a 4 MiB window keeps the USB link full.
+command_args="-F -E -R -s -g -W 4194304 -P /run/dropbear.pid"
+command_background=true
+pidfile="/run/orchard-ssh.pid"
+start_pre() {
+    checkpath --directory --mode 0700 --owner root:root /etc/dropbear
+}
