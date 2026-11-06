@@ -16,17 +16,18 @@ spec.loader.exec_module(build)
 
 
 def release(source):
-    """A fake release: one root, Pongo, and a recovery and layer per platform."""
-    for name in ('rootfs.tar.gz', 'pongo.bin', 'recovery-apple-16k.bin', 'platform-apple-16k.tar.gz',
-                 'recovery-apple-4k.bin', 'platform-apple-4k.tar.gz'):
+    """A fake release: the root image, its logo, and what orchard offers."""
+    for name in ('root.blocks.zst', 'root.map.json', 'logo.bin', 'pongo.bin', 'm1n1.bin', 'install-tools.tar.gz',
+                 'platform-apple-16k.tar.gz', 'platform-apple-4k.tar.gz'):
         (source / name).write_bytes(name.encode())
-    platforms = {}
-    for name, boards in (('apple-16k', ['j71b']), ('apple-4k', ['n61'])):
-        layer = build.receipt(source / f'platform-{name}.tar.gz')
-        layer.update(compression='gzip', expanded_bytes=10, members=2, kernel_release='7.3-' + name)
-        platforms[name] = {'boards': boards, 'boot': build.receipt(source / f'recovery-{name}.bin'), 'layer': layer}
-    return build.manifests(source, '0.1.0', {'compression': 'gzip', 'expanded_bytes': 100, 'members': 3},
-                           platforms, {'commit': 'c' * 40, 'modified': False})
+    platforms = {name: {**build.receipt(source / f'platform-{name}.tar.gz'), 'compression': 'gzip', 'expanded_bytes': 10,
+                        'members': 2, 'kernel_release': '7.3-' + name, 'boards': boards}
+                 for name, boards in (('apple-16k', ['j71b']), ('apple-4k', ['n61']))}
+    root = {**build.receipt(source / 'root.blocks.zst'), 'compression': 'zstd', 'format': 'blocks', 'expanded_bytes': 100,
+            'members': 3, 'map': build.receipt(source / 'root.map.json')}
+    offered = {'loaders': {'pongo': build.receipt(source / 'pongo.bin'), 'm1n1': build.receipt(source / 'm1n1.bin')},
+               'install_tools': build.receipt(source / 'install-tools.tar.gz'), 'platforms': platforms}
+    return build.manifests(source, '0.1.0', root, offered, {'commit': 'c' * 40, 'modified': False})
 
 
 class Publication(unittest.TestCase):
@@ -53,8 +54,8 @@ class Publication(unittest.TestCase):
             self.assertEqual(receipt['url'], 'https://github.com/OrchardLinux/minimal-linux/releases/download/v0.1.0/release.toml')
             self.assertEqual(receipt['sha256'], hashlib.sha256((output / 'release.toml').read_bytes()).hexdigest())
             hosted = tomllib.loads((output / 'release.toml').read_text())
-            for row in (hosted['root'], hosted['pongo'], *(files[role] for files in hosted['platforms'].values()
-                                                          for role in ('boot', 'layer'))):
+            for row in (hosted['root'], hosted['root']['map'], hosted['logo'], hosted['pongo'], hosted['m1n1'],
+                        hosted['install_tools'], *(files['layer'] for files in hosted['platforms'].values())):
                 self.assertNotIn('file', row)
                 self.assertIn('/releases/download/v0.1.0/', row['url'])
             self.assertEqual((output / 'pongo.bin').read_bytes(), b'pongo.bin')

@@ -147,6 +147,9 @@ jobs:
     needs: [test, orchard, artwork, base]
     env:
       HARDWARE_TAG: ${{ needs.orchard.outputs.tag }}
+      # The root image keeps its owners: as root, directly on this runner.
+      ORCHARD_BUILD_NATIVE: '1'
+      ORCHARD_BUILD_ENV_ID: ubuntu-24.04-arm-root-image
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -211,8 +214,13 @@ jobs:
           # What orchard supplies, from its bundles as they are: nothing is fetched or built.
           python -m orchard.inputs --output out/orchard-inputs.json "${kernels[@]}" \
             --m1n1 "$tools/quiet/m1n1.bin" --pongo "$tools/quiet/pongo.bin" --tools "$tools/boot"
+          # A published orchard build's files are linked from the release; a run's own are hosted with it.
+          source=(--orchard-release "$HARDWARE_TAG")
+          if [[ -n "${HARDWARE_ARTIFACT_DIR:-}" && -d "${HARDWARE_ARTIFACT_DIR:-}" ]]; then
+            source=(--orchard-inputs out/orchard-inputs.json)
+          fi
           python build.py --base out/base/base.tar.gz --base-receipt out/base/base.tar.gz.json \
-            --inputs out/inputs/inputs.json --orchard-inputs out/orchard-inputs.json --orchard .orchard \
+            --inputs out/inputs/inputs.json "${source[@]}" --orchard .orchard \
             --version "$VERSION" --output out/release
           python audit.py out/release --orchard .orchard
           python -m orchard.manifests --verify-local out/release/index.toml
