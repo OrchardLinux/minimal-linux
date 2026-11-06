@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One Alpine/OpenRC release for every platform: the root, per platform a recovery and orchard's layer.
+"""One Alpine/OpenRC release for every platform: the root as a block image, its logo, and orchard's files.
 
 The root holds no kernel; orchard's platform layer brings kernel, initrd, DTBs
 and modules at install, and orchard writes the boot entry.
@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 
 from snapshot import command as orchard_command, root as orchard_root, sha
 
@@ -32,18 +33,6 @@ def verify_inputs(path):
             raise ValueError('Component differs from receipt: ' + name)
         result[name] = p
     return result, spec
-
-
-def kernels(resolved, explicit=()):
-    """{platform: staged kernel bundle} of orchard.inputs' RESOLVED platforms; --kernel-dir overrides one."""
-    known = resolved['platforms']
-    given = {}
-    for value in explicit:
-        name, separator, path = value.partition('=')
-        if not separator or name not in known:
-            raise ValueError(f'Use --kernel-dir PLATFORM=DIRECTORY with a platform of: {", ".join(known)}')
-        given[name] = Path(path)
-    return {name: given.get(name) or Path(row['kernel']) for name, row in known.items()}
 
 
 def overlay():
@@ -167,8 +156,11 @@ def receipt(path):
     return {'file': path.name, 'bytes': path.stat().st_size, 'sha256': sha(path)}
 
 
-def manifests(output, version, root, platforms, orchard):
-    """release.toml (orchard's schema 2, every platform) and the index that pins it."""
+def manifests(output, version, root, offered, orchard):
+    """release.toml (orchard's schema 2, every platform) and the index that pins it.
+
+    ROOT is orchard.image.root_image's table, OFFERED orchard's platforms.toml beside it.
+    """
     document = ('schema = 2\nkind = "orchard.install"\ndistro = "minimal-linux"\n'
                 'name = "Minimal Alpine"\nversion = ' + json.dumps(version) + '\n'
                 'boot_method = "checkm8-pongo"\nmin_orchard = "0.2.0"\nprotocol = 1\n')
@@ -178,12 +170,14 @@ def manifests(output, version, root, platforms, orchard):
     document += table('install', {'default_root': '/minimal', 'ready': '/run/orchard-ready'})
     document += table('install.account', {'user': 'tablet', 'password': True, 'pin': False,
                                           'passwordless_sudo': False})
-    row = receipt(output / 'rootfs.tar.gz')
-    row.update({key: root[key] for key in ('compression', 'expanded_bytes', 'members')})
-    document += table('root', row) + table('pongo', receipt(output / 'pongo.bin'))
-    for name, files in sorted(platforms.items()):
-        document += f'\n[platforms.{name}]\nboards = {json.dumps(files["boards"])}\n'
-        document += table(f'platforms.{name}.boot', files['boot']) + table(f'platforms.{name}.layer', files['layer'])
+    document += table('root', {key: value for key, value in root.items() if key != 'map'})
+    document += table('root.map', root['map'])
+    document += table('logo', receipt(output / 'logo.bin'))  # the Alpine mark, drawn by orchard's m1n1
+    document += table('pongo', offered['loaders']['pongo']) + table('m1n1', offered['loaders']['m1n1'])
+    document += table('install_tools', offered['install_tools'])
+    for name, layer in sorted(offered['platforms'].items()):
+        document += f'\n[platforms.{name}]\nboards = {json.dumps(layer["boards"])}\n'
+        document += table(f'platforms.{name}.layer', {key: value for key, value in layer.items() if key != 'boards'})
     path = output / 'release.toml'
     path.write_text(document)
     (output / 'index.toml').write_text('schema = 2\nkind = "orchard.index"\ndistro = "minimal-linux"\n'
@@ -191,60 +185,39 @@ def manifests(output, version, root, platforms, orchard):
     return path
 
 
-def recovery(orchard, output, base, base_receipt, components, platform_name, bundle, boards):
-    """The platform's RAM recovery, which starts every board of it."""
-    dtbs = [bundle / 'dtbs' / (dtb + '.dtb') for dtb in sorted(set(boards.values()))]
-    image = output / f'recovery-{platform_name}.bin'
-    command = [*(f'--dtb={path}' for path in dtbs),
-               '--base', str(base), '--base-receipt', str(base_receipt),
-               '--kernel', str(bundle / 'Image.gz'), '--modules-dir', str(bundle / 'lib/modules')]
-    for name in ('loader', 'busybox', 'dropbear', 'dropbearkey', 'wpa_supplicant', 'wpa_cli', 'iw'):
-        command += ['--' + name.replace('_', '-'), str(components[name])]
-    command += ['--logo', str(components['logo'])]  # the Alpine mark, drawn by orchard's m1n1
-    command += ['--root-receipt', str(output / 'rootfs.json'), '--output', str(image)]
-    orchard_command(orchard, 'image.recovery', *command)
-    return image
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-    for name in ('base', 'base-receipt', 'inputs', 'orchard-inputs', 'output'):
+    for name in ('base', 'base-receipt', 'inputs', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--version', required=True)
     parser.add_argument('--orchard', type=Path, help='orchard snapshot (default: ORCHARD_CHECKOUT, then .orchard)')
-    parser.add_argument('--kernel-dir', action='append', default=[], metavar='PLATFORM=DIRECTORY',
-                        help="a platform's staged kernel bundle instead of the one orchard.inputs names")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument('--orchard-release', metavar='TAG', help="take orchard's files finished from this build")
+    source.add_argument('--orchard-inputs', type=Path, help="orchard's inputs for this build (orchard.inputs)")
     args = parser.parse_args()
     if args.output.exists() or args.output.is_symlink():
         parser.error('Choose a new output directory')
     orchard = orchard_root(args.orchard)
     components, inputs = verify_inputs(args.inputs)
-    resolved = json.loads(args.orchard_inputs.read_text())
-    try:
-        bundles = kernels(resolved, args.kernel_dir)
-    except ValueError as error:
-        parser.error(str(error))
+    resolved = json.loads(args.orchard_inputs.read_text()) if args.orchard_inputs else None
+    revision = resolved['orchard'] if resolved else None
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.minimal-build-', dir=args.output.parent) as temp:
         output = Path(temp) / 'release'
         output.mkdir()
-        root = root_archive(args.base, args.base_receipt, components, output, args.version, orchard)
-        platforms = {}
-        for name, bundle in bundles.items():
-            layer_receipt = Path(temp) / f'layer-{name}.json'
-            orchard_command(orchard, 'image.platform', name, '--output', output, '--kernel-dir', bundle,
-                            '--busybox', components['busybox'], '--receipt', layer_receipt, stdout=subprocess.DEVNULL)
-            layer = json.loads(layer_receipt.read_text())
-            image = recovery(orchard, output, args.base, args.base_receipt, components, name, bundle,
-                             resolved['platforms'][name]['boards'])
-            platforms[name] = {'boards': layer.pop('boards'), 'layer': layer, 'boot': receipt(image)}
-        shutil.copyfile(components['pongo'], output / 'pongo.bin')
-        revision = resolved['orchard']
-        manifests(output, args.version, root, platforms, revision)
+        root_archive(args.base, args.base_receipt, components, output, args.version, orchard)
+        source = ('--release', args.orchard_release) if args.orchard_release else ('--inputs', args.orchard_inputs)
+        orchard_command(orchard, 'image.platforms_index', output, *source, stdout=subprocess.DEVNULL)
+        offered = tomllib.loads((output / 'platforms.toml').read_text())
+        revision = revision or {'commit': offered['commit'], 'modified': False}
+        orchard_command(orchard, 'image.root_image', output / 'rootfs.tar.gz', '--output', output)
+        root = json.loads((output / 'root-image.json').read_text())
+        shutil.copyfile(components['logo'], output / 'logo.bin')
+        manifests(output, args.version, root, offered, revision)
         public_inputs = {**inputs, 'files': {name: {k: v for k, v in row.items() if k != 'path'}
                                              for name, row in inputs['files'].items()}}
         (output / 'build-receipt.json').write_text(json.dumps({'distro': 'minimal-linux',
-            'version': args.version, 'orchard': revision, 'platforms': platforms,
+            'version': args.version, 'orchard': revision, 'platforms': offered['platforms'],
             'base': json.loads(args.base_receipt.read_text()), 'inputs': public_inputs,
             'physical_device_operations_performed': False, 'hardware_validated': False}, indent=2) + '\n')
         shutil.rmtree(output / '.work', ignore_errors=True)
