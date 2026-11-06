@@ -5,7 +5,21 @@ COPY --from=armkeys /etc/apk/keys /armroot/etc/apk/keys
 COPY --from=armkeys /etc/apk/keys /etc/apk/keys
 RUN apk --root /armroot --arch armv7 --initdb --no-scripts \
     --keys-dir /etc/apk/keys --repositories-file /etc/apk/repositories \
-    add busybox musl python3 dropbear nfs-utils \
+    add busybox musl python3 dropbear nfs-utils util-linux e2fsprogs \
     && mkdir -p /armroot/bin \
     && cp /etc/apk/repositories /armroot/etc/apk/repositories \
-    && cp -a /etc/apk/keys /armroot/etc/apk/keys
+    && cp -a /etc/apk/keys /armroot/etc/apk/keys \
+    && for directory in bin sbin lib; do \
+        mkdir -p "/armroot/usr/$directory"; \
+        cp -a "/armroot/$directory/." "/armroot/usr/$directory/"; \
+        rm -rf "/armroot/$directory"; \
+        ln -s "usr/$directory" "/armroot/$directory"; \
+       done \
+    && test -f /armroot/usr/bin/python3 \
+    && test -f /armroot/usr/sbin/blkid \
+    && test -f /armroot/usr/sbin/sfdisk \
+    && test -f /armroot/usr/sbin/mke2fs \
+    && test -f /armroot/etc/mke2fs.conf \
+    && test "$(readlink /armroot/lib)" = usr/lib \
+    && test "$(readlink /armroot/bin)" = usr/bin \
+    && test "$(readlink /armroot/sbin)" = usr/sbin

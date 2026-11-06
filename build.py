@@ -177,7 +177,9 @@ def manifests(output, version, root, offered, orchard):
     document += table('install_tools', offered['install_tools'])
     for name, layer in sorted(offered['platforms'].items()):
         document += f'\n[platforms.{name}]\nboards = {json.dumps(layer["boards"])}\n'
-        document += table(f'platforms.{name}.layer', {key: value for key, value in layer.items() if key != 'boards'})
+        document += table(f'platforms.{name}.layer', {key: layer[key] for key in
+            ('file', 'url', 'bytes', 'sha256', 'compression', 'expanded_bytes', 'members', 'kernel_release')
+            if key in layer})
     path = output / 'release.toml'
     path.write_text(document)
     (output / 'index.toml').write_text('schema = 2\nkind = "orchard.index"\ndistro = "minimal-linux"\n'
@@ -201,6 +203,12 @@ def main():
     components, inputs = verify_inputs(args.inputs)
     resolved = json.loads(args.orchard_inputs.read_text()) if args.orchard_inputs else None
     revision = resolved['orchard'] if resolved else None
+    if resolved is not None:
+        try:
+            from producer_inputs import components as producer_components
+            producer_components(resolved)
+        except ValueError as error:
+            parser.error(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.minimal-build-', dir=args.output.parent) as temp:
         output = Path(temp) / 'release'

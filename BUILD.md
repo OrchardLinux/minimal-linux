@@ -75,7 +75,19 @@ signature or trust service.
 
 Use fresh output paths; producers refuse overwriting. The official Alpine OCI digest is pinned in `system/Containerfile`; APK repositories retain signature checking. The base records package versions in `/etc/alpine-packages.lock`. Its archive hash and all selected hardware hashes are recorded separately from the install contract. The APK mirror is not an immutable snapshot: future base rebuilds may select newer signed package revisions and must get new receipts.
 
-The producer composes Alpine-owned policy into one public gzip root for every platform (no kernel or modules: orchard's platform layer brings those at install, and orchard writes the boot entry), seals a recovery per platform to the root's receipt, adds orchard's layer per platform, and emits `release.toml` plus the index that pins it. Public build receipts omit local machine paths. No private firmware, SSH keys, ADT or machine IDs are embedded.
+The producer composes Alpine-owned policy into one public root archive, converts it with `orchard.image.root_image`, and takes platform layers, loaders and install tools from `orchard.image.platforms_index`. It emits `release.toml` plus the index that pins it. Public build receipts omit local machine paths. No private firmware, SSH keys, ADT or machine IDs are embedded.
+
+Builds using `--orchard-inputs` validate every selected platform against the
+ARM64 release root before root assembly. The standalone signed ARMv7 recovery
+base remains available through `armv7/build-base.py`.
+
+LwVM records require a static mapper for the selected ISA and a coherent rescue
+tool pair. This build passes the validated input document to
+`orchard.image.platforms_index --inputs`; Orchard's installed-root companion
+consumes the selected mapper and rescue paths when creating the layer. A local
+integration fixture checks the selected ARM64 board, loader and tool bytes
+through the real index and validates the resulting manifest. Physical P105
+qualification remains part of the ARMv7 device work.
 
 ## Native isolated checks
 

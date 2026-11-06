@@ -21,7 +21,7 @@ def release(source):
                  'platform-apple-16k.tar.gz', 'platform-apple-4k.tar.gz'):
         (source / name).write_bytes(name.encode())
     platforms = {name: {**build.receipt(source / f'platform-{name}.tar.gz'), 'compression': 'gzip', 'expanded_bytes': 10,
-                        'members': 2, 'kernel_release': '7.3-' + name, 'boards': boards}
+                        'members': 2, 'kernel_release': '7.3-' + name, 'boards': boards, 'architecture': 'arm64'}
                  for name, boards in (('apple-16k', ['j71b']), ('apple-4k', ['n61']))}
     root = {**build.receipt(source / 'root.blocks.zst'), 'compression': 'zstd', 'format': 'blocks', 'expanded_bytes': 100,
             'members': 3, 'map': build.receipt(source / 'root.map.json')}
@@ -40,6 +40,8 @@ class Publication(unittest.TestCase):
                 'default_root': '/minimal', 'ready': '/run/orchard-ready',
                 'account': {'user': 'tablet', 'password': True, 'pin': False, 'passwordless_sudo': False}})
             self.assertEqual(sorted(manifest['platforms']), ['apple-16k', 'apple-4k'])
+            for row in manifest['platforms'].values():
+                self.assertNotIn('architecture', row['layer'])
 
     def test_minimal_manifest_is_rewritten_and_rehashed(self):
         with tempfile.TemporaryDirectory() as directory:

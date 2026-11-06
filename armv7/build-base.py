@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Export signed Alpine ARMv7 packages for the 32-bit (apple-armv7) RAM recovery."""
 import argparse
+import gzip
 import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 
@@ -15,7 +17,7 @@ def main():
     parser.add_argument('--no-cache', action='store_true', help='refresh the package build without cached layers')
     args = parser.parse_args()
     output = args.output.absolute()
-    receipt = output.with_suffix('.json')
+    receipt = output.with_suffix(output.suffix + '.json')
     if output.exists() or output.is_symlink() or receipt.exists() or receipt.is_symlink():
         parser.error('Choose a fresh base output')
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -32,11 +34,17 @@ def main():
         observed = subprocess.check_output(['podman', 'image', 'inspect', image, '--format', '{{.Id}}'], text=True).strip()
         if observed.removeprefix('sha256:') != image.removeprefix('sha256:'):
             parser.error('Podman image inspection differs from the build output')
-        with output.open('xb') as stream:
+        archive = Path(temporary)/'base.tar'
+        with archive.open('xb') as stream:
             subprocess.run(['podman', 'run', '--rm', '--network', 'none', image,
                             'tar', '-C', '/armroot', '-cf', '-', '.'], stdout=stream, check=True)
+        with archive.open('rb') as source, output.open('xb') as stream:
+            with gzip.GzipFile(fileobj=stream, filename='', mode='wb', mtime=0,
+                               compresslevel=1) as compressed:
+                shutil.copyfileobj(source, compressed)
         with receipt.open('x') as stream:
-            stream.write(json.dumps({'schema': 1, 'architecture': 'armv7',
+            stream.write(json.dumps({'schema': 1, 'architecture': 'arm',
+                'archive': 'tar+gzip', 'layout': 'merged-usr',
                 'signed_apk': True, 'image': image, 'bytes': output.stat().st_size,
                 'sha256': hashlib.sha256(output.read_bytes()).hexdigest(),
                 'recipe_sha256': hashlib.sha256(recipe.read_bytes()).hexdigest()}, indent=2)+'\n')
