@@ -18,6 +18,7 @@ import tempfile
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+import producer_inputs  # noqa: E402
 import snapshot  # noqa: E402  orchard's snapshot and commands; none of its Python
 # What each component is made from, relative to this checkout.
 INPUTS = {
@@ -45,11 +46,6 @@ def main():
     # The release builder builds every platform when it is given none.
     selected = [part for name in args.platform if name != 'all' for part in ('--platform', name)]
 
-    base = snapshot.component('base', INPUTS['base'],
-                              lambda path, work: python('build_base.py', '--output', path), artifact='base.tar.gz')
-    artwork = snapshot.component('artwork', INPUTS['artwork'],
-                                 lambda path, work: python('boot/build-artwork.py', '--output', path),
-                                 artifact='artwork')
     (PROJECT / 'out').mkdir(exist_ok=True)
     # What orchard supplies finished: kernels, boards, m1n1, Pongo, tools (orchard.inputs). Kept beside the
     # release, not in it (its paths are this host's): under "produced" it says how orchard got each one.
@@ -57,7 +53,13 @@ def main():
     resolved.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.inputs-', dir=PROJECT / 'out') as temporary:
         snapshot.command(orchard, 'inputs', '--output', resolved, *selected)
-        shared = json.loads(resolved.read_text())['shared']
+        shared = producer_inputs.components(json.loads(resolved.read_text()))
+        base = snapshot.component('base', INPUTS['base'],
+                                  lambda path, work: python('build_base.py', '--output', path), artifact='base.tar.gz')
+        artwork = snapshot.component('artwork', INPUTS['artwork'],
+                                     lambda path, work: python('boot/build-artwork.py', '--output', path),
+                                     artifact='artwork')
+
         tools = {name: Path(path) for name, path in shared['tools'].items()}
         inputs = Path(temporary) / 'public'
         python('pin_components.py', '--loader', shared['m1n1'], '--splash', artwork / 'splash',

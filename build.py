@@ -201,6 +201,12 @@ def main():
     components, inputs = verify_inputs(args.inputs)
     resolved = json.loads(args.orchard_inputs.read_text()) if args.orchard_inputs else None
     revision = resolved['orchard'] if resolved else None
+    if resolved is not None:
+        try:
+            from producer_inputs import components as producer_components
+            producer_components(resolved)
+        except ValueError as error:
+            parser.error(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.minimal-build-', dir=args.output.parent) as temp:
         output = Path(temp) / 'release'
