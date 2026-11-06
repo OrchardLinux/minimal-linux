@@ -1,0 +1,11 @@
+# Native ARM64 apk verifies ARMv7 packages with the official ARMv7 signing keys.
+FROM docker.io/library/alpine@sha256:6db0aa37b0f1ba86c31102b0972cb082a1d22ed1390440de84f1076d78d4d399 AS armkeys
+FROM docker.io/library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42
+COPY --from=armkeys /etc/apk/keys /armroot/etc/apk/keys
+COPY --from=armkeys /etc/apk/keys /etc/apk/keys
+RUN apk --root /armroot --arch armv7 --initdb --no-scripts \
+    --keys-dir /etc/apk/keys --repositories-file /etc/apk/repositories \
+    add busybox musl python3 dropbear nfs-utils \
+    && mkdir -p /armroot/bin \
+    && cp /etc/apk/repositories /armroot/etc/apk/repositories \
+    && cp -a /etc/apk/keys /armroot/etc/apk/keys
