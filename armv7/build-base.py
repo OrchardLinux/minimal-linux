@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export signed Alpine ARMv7 packages for the P105 RAM recovery."""
+"""Export signed Alpine ARMv7 packages for the 32-bit (apple-armv7) RAM recovery."""
 import argparse
 import hashlib
 import json
@@ -20,7 +20,7 @@ def main():
         parser.error('Choose a fresh base output')
     output.parent.mkdir(parents=True, exist_ok=True)
     recipe = Path(__file__).with_name('Containerfile')
-    with tempfile.TemporaryDirectory(prefix='p105-recovery-base-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='armv7-recovery-base-') as temporary:
         image_file = Path(temporary)/'image.id'
         command = ['podman', 'build', '--iidfile', str(image_file)]
         if args.no_cache:
@@ -36,7 +36,7 @@ def main():
             subprocess.run(['podman', 'run', '--rm', '--network', 'none', image,
                             'tar', '-C', '/armroot', '-cf', '-', '.'], stdout=stream, check=True)
         with receipt.open('x') as stream:
-            stream.write(json.dumps({'schema': 1, 'architecture': 'armv7h',
+            stream.write(json.dumps({'schema': 1, 'architecture': 'armv7',
                 'signed_apk': True, 'image': image, 'bytes': output.stat().st_size,
                 'sha256': hashlib.sha256(output.read_bytes()).hexdigest(),
                 'recipe_sha256': hashlib.sha256(recipe.read_bytes()).hexdigest()}, indent=2)+'\n')

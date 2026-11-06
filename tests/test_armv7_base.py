@@ -1,4 +1,4 @@
-"""Host-only checks for the signed P105 recovery base exporter."""
+"""Host-only checks for the signed ARMv7 recovery base exporter."""
 import hashlib
 import importlib.util
 import json
@@ -9,12 +9,12 @@ from unittest.mock import patch
 
 
 PROJECT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('p105_base_test', PROJECT / 'p105/build-base.py')
+spec = importlib.util.spec_from_file_location('armv7_base_test', PROJECT / 'armv7/build-base.py')
 base = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(base)
 
 
-class P105Base(unittest.TestCase):
+class Armv7Base(unittest.TestCase):
     def test_export_receipt_binds_image_recipe_and_stream(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'base.tar'
@@ -32,10 +32,10 @@ class P105Base(unittest.TestCase):
                 base.main()
             receipt = json.loads(output.with_suffix('.json').read_text())
             self.assertEqual(receipt['image'], image)
-            self.assertEqual(receipt['architecture'], 'armv7h')
+            self.assertEqual(receipt['architecture'], 'armv7')
             self.assertTrue(receipt['signed_apk'])
             self.assertEqual(receipt['sha256'], hashlib.sha256(output.read_bytes()).hexdigest())
-            self.assertEqual(receipt['recipe_sha256'], hashlib.sha256((PROJECT / 'p105/Containerfile').read_bytes()).hexdigest())
+            self.assertEqual(receipt['recipe_sha256'], hashlib.sha256((PROJECT / 'armv7/Containerfile').read_bytes()).hexdigest())
             self.assertEqual([command[1] for command in commands], ['build', 'run'])
             self.assertNotIn('-t', commands[0])
             self.assertNotIn('--tag', commands[0])
@@ -103,7 +103,7 @@ class P105Base(unittest.TestCase):
             self.assertTrue(receipt.is_symlink())
 
     def test_recipe_pins_images_and_uses_verified_armv7_packages(self):
-        recipe = (PROJECT / 'p105/Containerfile').read_text()
+        recipe = (PROJECT / 'armv7/Containerfile').read_text()
         images = [line for line in recipe.splitlines() if line.startswith('FROM ')]
         self.assertEqual(len(images), 2)
         self.assertTrue(all('@sha256:' in line for line in images))

@@ -1,10 +1,11 @@
-# P105 ARMv7 recovery base
+# ARMv7 recovery base
 
-The original iPad mini Wi-Fi uses an ARMv7 recovery environment. Build its
-Alpine package base in an ARM64 Podman environment:
+Apple's 32-bit boards (the apple-armv7 platform, first the original iPad mini
+Wi-Fi) use an ARMv7 recovery environment. Build its Alpine package base in an
+ARM64 Podman environment:
 
 ```sh
-python3 p105/build-base.py --output /absolute/new/alpine-base.tar
+python3 armv7/build-base.py --output /absolute/new/alpine-base.tar
 ```
 
 Pass `--no-cache` to refresh the package layer. Each build uses its returned
