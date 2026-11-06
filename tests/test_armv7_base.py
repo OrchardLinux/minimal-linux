@@ -1,5 +1,6 @@
 """Host-only checks for the signed ARMv7 recovery base exporter."""
 import hashlib
+import gzip
 import importlib.util
 import json
 from pathlib import Path
@@ -17,7 +18,7 @@ spec.loader.exec_module(base)
 class Armv7Base(unittest.TestCase):
     def test_export_receipt_binds_image_recipe_and_stream(self):
         with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / 'base.tar'
+            output = Path(temporary) / 'base.tar.gz'
             image = 'sha256:' + 'a' * 64
             commands = []
             def run(command, **kwargs):
@@ -30,9 +31,13 @@ class Armv7Base(unittest.TestCase):
                  patch.object(base.subprocess, 'run', side_effect=run), \
                  patch.object(base.subprocess, 'check_output', return_value=image + '\n'):
                 base.main()
-            receipt = json.loads(output.with_suffix('.json').read_text())
+            receipt = json.loads(output.with_suffix('.gz.json').read_text())
             self.assertEqual(receipt['image'], image)
-            self.assertEqual(receipt['architecture'], 'armv7')
+            self.assertEqual(receipt['architecture'], 'arm')
+            self.assertEqual(receipt['archive'], 'tar+gzip')
+            self.assertEqual(receipt['layout'], 'merged-usr')
+            self.assertEqual(gzip.decompress(output.read_bytes()), b'fixture base')
+            self.assertEqual(output.read_bytes()[4:8], b'\0\0\0\0')
             self.assertTrue(receipt['signed_apk'])
             self.assertEqual(receipt['sha256'], hashlib.sha256(output.read_bytes()).hexdigest())
             self.assertEqual(receipt['recipe_sha256'], hashlib.sha256((PROJECT / 'armv7/Containerfile').read_bytes()).hexdigest())
@@ -63,7 +68,7 @@ class Armv7Base(unittest.TestCase):
             self.assertNotIn('-t', commands[0])
             self.assertNotIn('--tag', commands[0])
             self.assertEqual(inspect.call_args.args[0][3], image)
-            self.assertEqual(json.loads(output.with_suffix('.json').read_text())['image'], image)
+            self.assertEqual(json.loads(output.with_suffix('.tar.json').read_text())['image'], image)
 
     def test_mismatched_inspection_is_rejected_before_export(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -78,12 +83,12 @@ class Armv7Base(unittest.TestCase):
                     base.main()
             self.assertEqual(run.call_count, 1)
             self.assertFalse(output.exists())
-            self.assertFalse(output.with_suffix('.json').exists())
+            self.assertFalse(output.with_suffix('.tar.json').exists())
 
     def test_existing_output_or_receipt_stops_before_build(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'base.tar'
-            for present in (output, output.with_suffix('.json')):
+            for present in (output, output.with_suffix('.tar.json')):
                 with self.subTest(present=present):
                     present.write_bytes(b'existing')
                     with patch('sys.argv', ['build-base', '--output', str(output)]), \
@@ -93,7 +98,7 @@ class Armv7Base(unittest.TestCase):
                     run.assert_not_called()
                     self.assertEqual(present.read_bytes(), b'existing')
                     present.unlink()
-            receipt = output.with_suffix('.json')
+            receipt = output.with_suffix('.tar.json')
             receipt.symlink_to(Path(temporary) / 'missing')
             with patch('sys.argv', ['build-base', '--output', str(output)]), \
                  patch.object(base.subprocess, 'run') as run:
@@ -110,6 +115,11 @@ class Armv7Base(unittest.TestCase):
         self.assertIn('--arch armv7', recipe)
         self.assertIn('--no-scripts', recipe)
         self.assertIn('/etc/apk/keys', recipe)
+        self.assertIn('util-linux e2fsprogs', recipe)
+        self.assertIn('for directory in bin sbin lib', recipe)
+        for name in ('blkid', 'sfdisk', 'mke2fs'):
+            self.assertIn('test -f /armroot/usr/sbin/' + name, recipe)
+        self.assertIn('test -f /armroot/etc/mke2fs.conf', recipe)
 
 
 if __name__ == '__main__':
