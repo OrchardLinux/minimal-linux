@@ -71,12 +71,14 @@ def audit(directory):
     rootfile = directory / 'rootfs.tar.gz'
     assert rootfile.stat().st_size == record['bytes'] and sha(rootfile) == record['sha256']
     # The checks read the tree the image was made from; orchard.image.root_image made it, and checks it.
-    loaders = [value for key, value in manifest.items()
-               if isinstance(value, dict) and key not in ('orchard', 'install', 'root', 'logo', 'install_tools',
-                                                          'platforms')]
     if arch == 'aarch64':
-        assert 'pongo' in manifest and 'm1n1' in manifest
-    for row in (manifest['root'], manifest['root']['map'], manifest['logo'], *loaders, manifest['install_tools']):
+        assert 'pongo' in manifest and 'm1n1' in manifest and 'logo' in manifest
+        files = [manifest['logo'], manifest['pongo'], manifest['m1n1']]
+    else:   # a board's Cascadia loader each; no Pongo, m1n1 or logo
+        assert manifest['boot_method'] == 'recovery-autogo' and manifest['cascadia']
+        assert not {'pongo', 'm1n1', 'logo'} & manifest.keys()
+        files = list(manifest['cascadia'].values())
+    for row in (manifest['root'], manifest['root']['map'], *files, manifest['install_tools']):
         path = directory / row['file']
         assert path.stat().st_size == row['bytes'] and sha(path) == row['sha256'], row['file']
     entries = {}

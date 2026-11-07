@@ -24,11 +24,11 @@ from snapshot import command as orchard_command, platforms as orchard_platforms,
 
 PROJECT = Path(__file__).resolve().parent
 POLICY = PROJECT / 'system/image_policy.py'
-# Per root architecture: the index orchard.image.platforms_index writes (arm64: platforms.toml; the 32-bit
-# platforms have their own), and how the release's boards start when the index doesn't say.
+# Per root architecture: orchard's name for it, the index orchard.image.platforms_index writes, and the
+# boot method of its manifest (orchard docs/distribution-contract.md, "32-bit roots").
 ARCHITECTURES = {
-    'aarch64': {'index': 'platforms.toml', 'boot_method': 'checkm8-pongo'},
-    'armv7': {'index': 'platforms-armv7.toml', 'boot_method': 'cascadia'},
+    'aarch64': {'orchard': 'arm64', 'index': 'platforms.toml', 'boot_method': 'checkm8-pongo'},
+    'armv7': {'orchard': 'arm', 'index': 'platforms-armv7.toml', 'boot_method': 'recovery-autogo'},
 }
 # An armv7 root has Alpine's udhcpd (busybox-extras) where an arm64 root has orchard's static BusyBox.
 ARMV7_BUSYBOX = 'usr/bin/busybox-extras'
@@ -181,7 +181,7 @@ def manifests(output, version, root, offered, orchard, arch='aarch64'):
 
     ROOT is orchard.image.root_image's table, OFFERED orchard's index of the architecture beside it.
     """
-    boot_method = offered.get('boot_method', ARCHITECTURES[arch]['boot_method'])
+    boot_method = ARCHITECTURES[arch]['boot_method']
     document = ('schema = 2\nkind = "orchard.install"\ndistro = "minimal-linux"\n'
                 'name = "Minimal Alpine"\nversion = ' + json.dumps(version) + '\n'
                 'boot_method = ' + json.dumps(boot_method) + '\nmin_orchard = "0.2.0"\nprotocol = 1\n')
@@ -193,10 +193,13 @@ def manifests(output, version, root, offered, orchard, arch='aarch64'):
                                           'passwordless_sudo': False})
     document += table('root', {key: value for key, value in root.items() if key != 'map'})
     document += table('root.map', root['map'])
-    document += table('logo', receipt(output / 'logo.bin'))  # the Alpine mark, drawn by orchard's m1n1
-    # orchard's loaders as its index names them (arm64: pongo and m1n1).
-    for name, row in offered['loaders'].items():
-        document += table(name, row)
+    if arch == 'aarch64':
+        document += table('logo', receipt(output / 'logo.bin'))  # the Alpine mark, drawn by orchard's m1n1
+        document += table('pongo', offered['loaders']['pongo']) + table('m1n1', offered['loaders']['m1n1'])
+    else:
+        # A 32-bit release names each board's Cascadia loader; it has no Pongo, m1n1 or logo.
+        for board, row in sorted(offered['loaders']['cascadia'].items()):
+            document += table(f'cascadia.{board}', row)
     document += table('install_tools', offered['install_tools'])
     for name, layer in sorted(offered['platforms'].items()):
         document += f'\n[platforms.{name}]\nboards = {json.dumps(layer["boards"])}\n'
@@ -238,14 +241,18 @@ def main():
         output = Path(temp) / 'release'
         output.mkdir()
         root_archive(args.base, args.base_receipt, components, output, args.version, orchard, args.arch)
-        source = (('--release', args.orchard_release, *(part for name in selected for part in ('--platform', name)))
+        # --architecture only for 32-bit: the arm64 index is the default (and older orchards lack the option).
+        source = (('--release', args.orchard_release,
+                   *(('--architecture', ARCHITECTURES[args.arch]['orchard']) if args.arch != 'aarch64' else ()),
+                   *(part for name in selected for part in ('--platform', name)))
                   if args.orchard_release else ('--inputs', args.orchard_inputs))
         orchard_command(orchard, 'image.platforms_index', output, *source, stdout=subprocess.DEVNULL)
         offered = tomllib.loads((output / ARCHITECTURES[args.arch]['index']).read_text())
         revision = revision or {'commit': offered['commit'], 'modified': False}
         orchard_command(orchard, 'image.root_image', output / 'rootfs.tar.gz', '--output', output)
         root = json.loads((output / 'root-image.json').read_text())
-        shutil.copyfile(components['logo'], output / 'logo.bin')
+        if args.arch == 'aarch64':
+            shutil.copyfile(components['logo'], output / 'logo.bin')
         manifests(output, args.version, root, offered, revision, args.arch)
         public_inputs = {**inputs, 'files': {name: {k: v for k, v in row.items() if k != 'path'}
                                              for name, row in inputs['files'].items()}}

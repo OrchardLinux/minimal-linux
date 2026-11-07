@@ -143,20 +143,22 @@ class Manifest(unittest.TestCase):
     def test_loaders_and_boards_come_from_the_32_bit_index(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)
-            for name in ('root.blocks.zst', 'root.map.json', 'logo.bin', 'cascadia.bin', 'install-tools-armv7.tar.gz',
+            for name in ('root.blocks.zst', 'root.map.json', 'cascadia-p105.bin', 'install-tools-armv7.tar.gz',
                          'platform-apple-armv7.tar.gz'):
                 (source / name).write_bytes(name.encode())
             root = {**build.receipt(source / 'root.blocks.zst'), 'compression': 'zstd', 'format': 'blocks',
                     'expanded_bytes': 100, 'members': 3, 'map': build.receipt(source / 'root.map.json')}
-            offered = {'loaders': {'cascadia': build.receipt(source / 'cascadia.bin')},
+            # orchard's platforms-armv7.toml: a Cascadia loader per board.
+            offered = {'architecture': 'arm', 'loaders': {'cascadia': {'p105': build.receipt(source / 'cascadia-p105.bin')}},
                        'install_tools': build.receipt(source / 'install-tools-armv7.tar.gz'),
                        'platforms': {'apple-armv7': {**build.receipt(source / 'platform-apple-armv7.tar.gz'),
                                                      'compression': 'gzip', 'expanded_bytes': 10, 'members': 2,
                                                      'kernel_release': '6.12-armv7', 'boards': ['p105']}}}
             manifest = tomllib.loads(build.manifests(source, '1', root, offered,
                                                      {'commit': 'c' * 40, 'modified': False}, 'armv7').read_text())
-            self.assertEqual(manifest['boot_method'], 'cascadia')
-            self.assertEqual(manifest['cascadia']['file'], 'cascadia.bin')
+            self.assertEqual(manifest['boot_method'], 'recovery-autogo')
+            self.assertEqual(manifest['cascadia']['p105']['file'], 'cascadia-p105.bin')
+            self.assertNotIn('logo', manifest)
             self.assertNotIn('pongo', manifest)
             self.assertNotIn('m1n1', manifest)
             self.assertEqual(manifest['platforms']['apple-armv7']['boards'], ['p105'])
