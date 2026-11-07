@@ -1,0 +1,50 @@
+#!/bin/sh
+# The ARMv7 root, built by arm64 tools only. Packages are unpacked without their
+# scripts (they are ARMv7 code), so this does by hand, as files, what those
+# scripts and system/install-base do for the arm64 root.
+set -eu
+root=/armroot
+# Alpine's ARMv7 signing keys, as the pinned image's alpine-keys ships them.
+cp /usr/share/apk/keys/armv7/*.pub /etc/apk/keys/
+mkdir -p "$root/etc/apk"
+cp /etc/apk/repositories "$root/etc/apk/repositories"
+# The arm64 root's packages: the Alpine image's own, system/install-base's,
+# dropbear and busybox-extras (udhcpd) in place of orchard's arm64 static tools.
+apk --root "$root" --arch armv7 --initdb --no-scripts --no-cache --keys-dir /etc/apk/keys add \
+  alpine-baselayout alpine-keys alpine-release apk-tools busybox musl-utils \
+  openrc python3 bash kmod util-linux e2fsprogs e2fsprogs-extra openssh-client-default shadow openssl \
+  dropbear busybox-extras
+# Arm64 helpers for the steps below; they change only the builder.
+apk add --no-cache merge-usr shadow tar
+# What the skipped package scripts do on a fresh install, as files:
+# alpine-baselayout's shadow group, bash's /etc/shells line, and BusyBox's and
+# busybox-extras' applet links (from the lists they ship) and klogd account.
+grep -q '^shadow:' "$root/etc/group" || groupadd --root "$root" --system --gid 42 shadow
+grep -qx /bin/bash "$root/etc/shells" || echo /bin/bash >> "$root/etc/shells"
+for list in "$root"/etc/busybox-paths.d/*; do
+  case "$list" in *busybox-extras) target=/bin/busybox-extras ;; *) target=/bin/busybox ;; esac
+  while read -r applet; do
+    applet=${applet#/}
+    [ -n "$applet" ] || continue
+    if [ -e "$root/$applet" ] || [ -L "$root/$applet" ]; then continue; fi
+    mkdir -p "$root/$(dirname "$applet")"
+    ln -s "$target" "$root/$applet"
+  done < "$list"
+done
+groupadd --root "$root" --system klogd
+useradd --root "$root" --system --no-create-home --home-dir /dev/null --shell /sbin/nologin \
+  --gid klogd --comment klogd klogd
+# The one regular user; orchard's installer sets its password (chpasswd).
+useradd --root "$root" --create-home --uid 1000 --user-group --shell /bin/bash tablet
+merge-usr --root "$root" --dryrun
+merge-usr --root "$root"
+apk --root "$root" info -v > "$root/etc/alpine-packages.lock"
+rm -f "$root/etc/machine-id" "$root/var/lib/dbus/machine-id"
+test "$(cat "$root/etc/apk/arch")" = armv7
+test -x "$root/usr/sbin/resize2fs" -a -e "$root/usr/bin/python3"
+test "$(readlink "$root/lib")" = usr/lib
+test "$(readlink "$root/bin")" = usr/bin
+test "$(readlink "$root/sbin")" = usr/sbin
+test -x "$root/usr/bin/busybox" -a -L "$root/usr/bin/ls" -a -L "$root/usr/sbin/getty"
+test -e "$root/usr/lib/ld-musl-armhf.so.1"
+test ! -e "$root/usr/lib/systemd/systemd"
