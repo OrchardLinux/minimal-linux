@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 
 PROJECT = Path(__file__).resolve().parent
 
@@ -33,6 +34,21 @@ def command(snapshot, module, *argv, **kwargs):
     print('+', ' '.join(argv), flush=True)
     environment = {**os.environ, 'PYTHONPATH': str(Path(snapshot) / 'src'), 'ORCHARD_CHECKOUT': str(snapshot)}
     return subprocess.run(argv, env=environment, check=True, **kwargs)
+
+
+# The userspace architecture of a root for each kernel architecture orchard's platforms name.
+ARCHITECTURES = {'arm64': 'aarch64', 'arm': 'armv7'}
+
+
+def platforms(snapshot):
+    """{platform: userspace architecture} for every platform the snapshot describes (platforms/NAME.toml, data)."""
+    result = {}
+    for path in sorted((Path(snapshot) / 'platforms').glob('*.toml')):
+        kernel = tomllib.loads(path.read_text())['kernel']['arch']
+        if kernel not in ARCHITECTURES:
+            raise ValueError(f'{path.name}: no root for kernel architecture {kernel}')
+        result[path.stem] = ARCHITECTURES[kernel]
+    return result
 
 
 def sha(path):

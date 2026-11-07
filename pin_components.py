@@ -15,17 +15,24 @@ import tempfile
 
 from snapshot import sha
 
-ROLES = ('loader', 'splash', 'logo', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw')
+REQUIRED = ('splash', 'logo')
+# orchard's m1n1, Pongo and static arm64 tools: an arm64 root's; an armv7 root has Alpine's tools.
+ORCHARD = ('loader', 'pongo', 'busybox', 'dropbear', 'dropbearkey', 'wpa-supplicant', 'wpa-cli', 'iw')
+ROLES = (*REQUIRED, *ORCHARD)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     for name in (*ROLES, 'output'):
-        parser.add_argument('--' + name, type=Path, required=True)
+        parser.add_argument('--' + name, type=Path, required=name not in ORCHARD)
     args = parser.parse_args()
     if args.output.exists() or args.output.is_symlink():
         parser.error('Choose a new component output directory')
-    sources = {name.replace('-', '_'): getattr(args, name.replace('-', '_')) for name in ROLES}
+    given = [name for name in ORCHARD if getattr(args, name.replace('-', '_')) is not None]
+    if given and len(given) != len(ORCHARD):
+        parser.error("orchard's components come all together or not at all: " + ', '.join(ORCHARD))
+    sources = {name.replace('-', '_'): getattr(args, name.replace('-', '_')) for name in ROLES
+               if getattr(args, name.replace('-', '_')) is not None}
     for path in sources.values():
         if path.is_symlink() or not path.is_file():
             parser.error(f'Explicit input must be a regular file: {path}')

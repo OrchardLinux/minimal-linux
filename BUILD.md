@@ -23,6 +23,20 @@ change; the release is assembled and audited every time. `orchard run` boots its
 recovery on the attached device without installing, and `orchard install`
 installs it. The rest of this page is what that entry runs, step by step.
 
+### 32-bit (armv7)
+
+A release has one root of one architecture. `orchard build --platform apple-armv7`
+(or `tools/build.py --arch armv7`) builds the armv7 root and its own release, for
+orchard's 32-bit platforms: the same packages, services and configuration as the
+arm64 root, with Alpine's dropbear and udhcpd (`busybox-extras`) in place of
+orchard's static arm64 tools. `system/armv7/` builds it in the same pinned arm64
+Alpine image: the native `apk --arch armv7` unpacks the signed ARMv7 packages into
+`/armroot` without running their scripts, and the recipe does as files what those
+scripts would (applet links, accounts, `/etc/shells`), then merges `/usr` with the
+arm64 `merge-usr --root`. Nothing runs ARMv7 code, so no emulation is needed. The
+release takes the boards, loaders and layer from orchard's 32-bit index
+(`platforms-armv7.toml`, beside the unchanged arm64 `platforms.toml`).
+
 ## Local setup
 
 Requires uv and a native ARM64 Podman environment. Run commands from this
@@ -51,7 +65,7 @@ the few lines that find it and run its commands.
 ```sh
 export ORCHARD=/path/to/orchard PYTHONPATH=/path/to/orchard/src
 python3 boot/build-artwork.py --output out/artwork
-python3 build_base.py --output out/base/base.tar.gz
+python3 build_base.py --output out/base/base.tar.gz   # --arch armv7: the 32-bit root's base
 # What orchard supplies finished: kernels and boards per platform, m1n1, Pongo, tools.
 python3 -m orchard.inputs --output out/orchard-inputs.json --platform apple-16k
 python3 pin_components.py --loader M1N1 --splash out/artwork/splash --logo out/artwork/logo.bin \
@@ -75,7 +89,7 @@ signature or trust service.
 
 Use fresh output paths; producers refuse overwriting. The official Alpine OCI digest is pinned in `system/Containerfile`; APK repositories retain signature checking. The base records package versions in `/etc/alpine-packages.lock`. Its archive hash and all selected hardware hashes are recorded separately from the install contract. The APK mirror is not an immutable snapshot: future base rebuilds may select newer signed package revisions and must get new receipts.
 
-The producer composes Alpine-owned policy into one public gzip root for every platform (no kernel or modules: orchard's platform layer brings those at install, and orchard writes the boot entry), seals a recovery per platform to the root's receipt, adds orchard's layer per platform, and emits `release.toml` plus the index that pins it. Public build receipts omit local machine paths. No private firmware, SSH keys, ADT or machine IDs are embedded.
+The producer composes Alpine-owned policy into one public gzip root for every platform of its architecture (no kernel or modules: orchard's platform layer brings those at install, and orchard writes the boot entry), seals a recovery per platform to the root's receipt, adds orchard's layer per platform, and emits `release.toml` plus the index that pins it. Public build receipts omit local machine paths. No private firmware, SSH keys, ADT or machine IDs are embedded.
 
 ## Native isolated checks
 

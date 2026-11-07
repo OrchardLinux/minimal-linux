@@ -13,6 +13,20 @@ from snapshot import root as orchard_root, sha
 HARDWARE = None  # the orchard snapshot; main() sets it, else orchard_root() finds it
 
 
+# Per root architecture: its ELF class and machine, and the musl loader.
+ARCHITECTURES = {'aarch64': {'class': 2, 'machine': 183, 'loader': 'usr/lib/ld-musl-aarch64.so.1'},
+                 'armv7': {'class': 1, 'machine': 40, 'loader': 'usr/lib/ld-musl-armhf.so.1'}}
+
+
+def check_elf_arch(data, arch):
+    """An ELF file of the root is of the root's architecture: no arm64 tool in an armv7 root, or back."""
+    if data[:4] != b'\x7fELF':
+        return False
+    target = ARCHITECTURES[arch]
+    assert data[4] == target['class'] and struct.unpack_from('<H', data, 18)[0] == target['machine']
+    return True
+
+
 def check_elf_pages(data):
     """The real J71b kernel uses 16 KiB pages; the container kernel may not."""
     if data[:6] != b'\x7fELF\x02\x01':
@@ -53,15 +67,22 @@ def audit(directory):
     manifest = tomllib.loads((directory / 'release.toml').read_text())
     assert manifest['schema'] == 2 and manifest['distro'] == 'minimal-linux'
     record = json.loads((directory / 'rootfs.json').read_text())
+    arch = record.get('architecture', 'aarch64')
     rootfile = directory / 'rootfs.tar.gz'
     assert rootfile.stat().st_size == record['bytes'] and sha(rootfile) == record['sha256']
     # The checks read the tree the image was made from; orchard.image.root_image made it, and checks it.
-    for row in (manifest['root'], manifest['root']['map'], manifest['logo'], manifest['pongo'], manifest['m1n1'],
-                manifest['install_tools']):
+    if arch == 'aarch64':
+        assert 'pongo' in manifest and 'm1n1' in manifest and 'logo' in manifest
+        files = [manifest['logo'], manifest['pongo'], manifest['m1n1']]
+    else:   # a board's Cascadia loader each; no Pongo, m1n1 or logo
+        assert manifest['boot_method'] == 'recovery-autogo' and manifest['cascadia']
+        assert not {'pongo', 'm1n1', 'logo'} & manifest.keys()
+        files = list(manifest['cascadia'].values())
+    for row in (manifest['root'], manifest['root']['map'], *files, manifest['install_tools']):
         path = directory / row['file']
         assert path.stat().st_size == row['bytes'] and sha(path) == row['sha256'], row['file']
     entries = {}
-    size = elf_loads = 0
+    size = elf_loads = elf_files = 0
     with tarfile.open(rootfile, 'r|gz') as archive:
         for m in archive:
             assert m.name not in entries
@@ -74,13 +95,16 @@ def audit(directory):
                                           'usr/bin/sudo', 'usr/libexec/omarchy-', 'usr/lib/modules/'))
             data = archive.extractfile(m).read() if m.isfile() else None
             if data is not None:
-                elf_loads += check_elf_pages(data)
+                elf_files += check_elf_arch(data, arch)
+                if arch == 'aarch64':
+                    elf_loads += check_elf_pages(data)
             entries[m.name] = (data, m.mode, m.linkname)
             size += m.size
     assert len(entries) == record['members'] and size == record['expanded_bytes']
     assert entries['lib'][2] == 'usr/lib'
     assert entries['usr/sbin/init'][2] == '/bin/busybox'
-    assert entries['usr/lib/ld-musl-aarch64.so.1'][0].startswith(b'\x7fELF')
+    assert entries[ARCHITECTURES[arch]['loader']][0].startswith(b'\x7fELF')
+    assert entries['etc/apk/arch'][0].strip() == arch.encode()
     assert 'usr/lib/libc.so.6' not in entries
     assert entries['etc/shadow'][0].startswith(b'root:!:')
     assert 'root/.ssh/authorized_keys' not in entries
@@ -89,7 +113,9 @@ def audit(directory):
     # Every boot is reachable over USB: a serial console login and session SSH.
     assert b'ttyGS0::respawn:/sbin/getty' in entries['etc/inittab'][0]
     assert 'usr/share/orchard/splash' in entries, 'the boot splash for orchard launch'
-    for name in ('usr/sbin/dropbear', 'etc/init.d/orchard-ssh', 'etc/init.d/orchard-usb',
+    # resize2fs and python3: what the install finish step runs in the root.
+    for name in ('usr/sbin/resize2fs', 'usr/bin/python3',
+                 'usr/sbin/dropbear', 'usr/libexec/minimal-linux/busybox', 'etc/init.d/orchard-ssh', 'etc/init.d/orchard-usb',
                  'etc/runlevels/default/orchard-ssh', 'etc/runlevels/default/orchard-usb',
                  'etc/init.d/orchard-splash', 'etc/orchard/udhcpd.conf'):
         assert name in entries, name
@@ -106,7 +132,8 @@ def audit(directory):
         # The installer refuses a layer file the root already has.
         assert not (layer.keys() & {n for n, (data, _, _) in entries.items() if data is not None})
         platforms[name] = {'boards': sorted(description['boards'])}
-    return {'root_sha256': record['sha256'], 'root_bytes': record['bytes'],
+    return {'architecture': arch, 'elf_files': elf_files,
+            'root_sha256': record['sha256'], 'root_bytes': record['bytes'],
             'expanded_bytes': size, 'root_members': len(entries), 'platforms': platforms,
             'elf_16k_compatible_load_segments': elf_loads,
             'signed_regulatory_database_present': True,

@@ -2,7 +2,7 @@
 """Clear only the inherited simpledrm framebuffer; never change backlight/power.
 
 Run by the image's readiness helper, not by hardware preparation or Pongo.
-Linux ARM64 fbdev ABI; geometry and byte bounds come from the current driver.
+Linux fbdev ABI of this root's architecture (arm64 or armv7); geometry and byte bounds come from the current driver.
 """
 import fcntl
 import json
@@ -14,14 +14,16 @@ FBIOGET_VSCREENINFO = 0x4600
 FBIOGET_FSCREENINFO = 0x4602
 FBIOBLANK = 0x4611
 MAX_BYTES = 64 * 1024 * 1024
+# fb_fix_screeninfo has an unsigned long (smem_start) after its 16-byte id.
+LONG = struct.calcsize('@L')
 
 
 def black_frame(variable, fixed):
     x, y, xv, yv, xo, yo, bpp, gray = struct.unpack_from('<8I', variable)
     name = bytes(fixed[:16]).rstrip(b'\0')
-    capacity = struct.unpack_from('<I', fixed, 24)[0]
-    kind, auxiliary, visual = struct.unpack_from('<3I', fixed, 28)
-    stride = struct.unpack_from('<I', fixed, 48)[0]
+    capacity = struct.unpack_from('<I', fixed, 16 + LONG)[0]
+    kind, auxiliary, visual = struct.unpack_from('<3I', fixed, 20 + LONG)
+    stride = struct.unpack_from('<I', fixed, 40 + LONG)[0]
     if (name != b'simpledrmdrmfb' or kind != 0 or visual != 2 or gray or bpp != 32 or
             not (0 < x <= xv <= 8192 and 0 < y <= yv <= 8192) or
             xo + x > xv or yo + y > yv or stride < xv * 4 or stride % 4):

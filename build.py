@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""One Alpine/OpenRC release for every platform: the root as a block image, its logo, and orchard's files.
+"""One Alpine/OpenRC release for every platform of one architecture: the root as a block image, its logo, and orchard's files.
 
 The root holds no kernel; orchard's platform layer brings kernel, initrd, DTBs
-and modules at install, and orchard writes the boot entry.
+and modules at install, and orchard writes the boot entry. A release has one
+root: aarch64 for orchard's arm64 platforms, armv7 for its 32-bit ones (a
+release of its own, from orchard's 32-bit index).
 """
 import argparse
 import gzip
@@ -18,10 +20,18 @@ import tarfile
 import tempfile
 import tomllib
 
-from snapshot import command as orchard_command, root as orchard_root, sha
+from snapshot import command as orchard_command, platforms as orchard_platforms, root as orchard_root, sha
 
 PROJECT = Path(__file__).resolve().parent
 POLICY = PROJECT / 'system/image_policy.py'
+# Per root architecture: orchard's name for it, the index orchard.image.platforms_index writes, and the
+# boot method of its manifest (orchard docs/distribution-contract.md, "32-bit roots").
+ARCHITECTURES = {
+    'aarch64': {'orchard': 'arm64', 'index': 'platforms.toml', 'boot_method': 'checkm8-pongo'},
+    'armv7': {'orchard': 'arm', 'index': 'platforms-armv7.toml', 'boot_method': 'recovery-autogo'},
+}
+# An armv7 root has Alpine's udhcpd (busybox-extras) where an arm64 root has orchard's static BusyBox.
+ARMV7_BUSYBOX = 'usr/bin/busybox-extras'
 
 
 def verify_inputs(path):
@@ -47,15 +57,19 @@ def overlay():
     return result
 
 
-def root_archive(base, base_receipt, components, output, version, hardware):
+def root_archive(base, base_receipt, components, output, version, hardware, arch='aarch64'):
     receipt = json.loads(base_receipt.read_text())
     if base.is_symlink() or base.stat().st_size != receipt['bytes'] or sha(base) != receipt['sha256']:
         raise ValueError('Alpine base differs from receipt')
+    if receipt.get('architecture', 'aarch64') != arch:
+        raise ValueError(f'The Alpine base is {receipt.get("architecture", "aarch64")}, not {arch}')
     additions = overlay()
     additions['usr/libexec/minimal-linux/image_policy.py'] = (POLICY.read_bytes(), 0o644)
-    for source, target in (('busybox', 'usr/libexec/minimal-linux/busybox'),
-                           ('dropbear', 'usr/sbin/dropbear'), ('dropbearkey', 'usr/bin/dropbearkey')):
-        additions[target] = (components[source].read_bytes(), 0o755)
+    if arch == 'aarch64':
+        for source, target in (('busybox', 'usr/libexec/minimal-linux/busybox'),
+                               ('dropbear', 'usr/sbin/dropbear'), ('dropbearkey', 'usr/bin/dropbearkey')):
+            additions[target] = (components[source].read_bytes(), 0o755)
+    copied = {}  # an armv7 root's udhcpd BusyBox: Alpine's, copied from the base below
     # m1n1 paints it when the entry starts, before the kernel (orchard docs/boot-contract.md).
     additions['usr/share/orchard/splash'] = (components['splash'].read_bytes(), 0o644)
     additions['usr/sbin/capture-adt'] = ((hardware / 'boot/initramfs/recovery/capture-adt').read_bytes(), 0o755)
@@ -107,6 +121,8 @@ def root_archive(base, base_receipt, components, output, version, hardware):
                     if name == 'root':
                         member.mode = 0o700
                     data = source.extractfile(member).read() if member.isfile() else None
+                    if arch != 'aarch64' and name == ARMV7_BUSYBOX:
+                        copied['usr/libexec/minimal-linux/busybox'] = (data, 0o755)
                     add(member, data)
 
             def parents(name):
@@ -122,6 +138,10 @@ def root_archive(base, base_receipt, components, output, version, hardware):
                     member.type, member.mode = tarfile.DIRTYPE, 0o755
                     add(member)
 
+            if arch != 'aarch64':
+                if not copied:
+                    raise ValueError(f'The {arch} base lacks {ARMV7_BUSYBOX}')
+                additions.update(copied)
             for name, (data, mode) in sorted(additions.items()):
                 parents(name)
                 member = tarfile.TarInfo(name)
@@ -140,7 +160,7 @@ def root_archive(base, base_receipt, components, output, version, hardware):
             member = tarfile.TarInfo('etc/runlevels/sysinit/cgroups')
             member.type, member.mode, member.linkname = tarfile.SYMTYPE, 0o777, '/etc/init.d/cgroups'
             add(member)
-    record = {'schema': 2, 'kind': 'rootfs', 'release': version,
+    record = {'schema': 2, 'kind': 'rootfs', 'release': version, 'architecture': arch,
               'bytes': path.stat().st_size, 'sha256': sha(path), 'compression': 'gzip',
               'expanded_bytes': expanded, 'members': count,
               'base_sha256': receipt['sha256'], 'removed_privileged_modes': privileged}
@@ -156,14 +176,15 @@ def receipt(path):
     return {'file': path.name, 'bytes': path.stat().st_size, 'sha256': sha(path)}
 
 
-def manifests(output, version, root, offered, orchard):
-    """release.toml (orchard's schema 2, every platform) and the index that pins it.
+def manifests(output, version, root, offered, orchard, arch='aarch64'):
+    """release.toml (orchard's schema 2, every platform of the root's architecture) and the index that pins it.
 
-    ROOT is orchard.image.root_image's table, OFFERED orchard's platforms.toml beside it.
+    ROOT is orchard.image.root_image's table, OFFERED orchard's index of the architecture beside it.
     """
+    boot_method = ARCHITECTURES[arch]['boot_method']
     document = ('schema = 2\nkind = "orchard.install"\ndistro = "minimal-linux"\n'
                 'name = "Minimal Alpine"\nversion = ' + json.dumps(version) + '\n'
-                'boot_method = "checkm8-pongo"\nmin_orchard = "0.2.0"\nprotocol = 1\n')
+                'boot_method = ' + json.dumps(boot_method) + '\nmin_orchard = "0.2.0"\nprotocol = 1\n')
     document += table('orchard', orchard)
     # The one regular user gets its password at install; no lock screen, so no PIN.
     # The ready file is minimal-ready's, once services and the splash are done.
@@ -172,8 +193,13 @@ def manifests(output, version, root, offered, orchard):
                                           'passwordless_sudo': False})
     document += table('root', {key: value for key, value in root.items() if key != 'map'})
     document += table('root.map', root['map'])
-    document += table('logo', receipt(output / 'logo.bin'))  # the Alpine mark, drawn by orchard's m1n1
-    document += table('pongo', offered['loaders']['pongo']) + table('m1n1', offered['loaders']['m1n1'])
+    if arch == 'aarch64':
+        document += table('logo', receipt(output / 'logo.bin'))  # the Alpine mark, drawn by orchard's m1n1
+        document += table('pongo', offered['loaders']['pongo']) + table('m1n1', offered['loaders']['m1n1'])
+    else:
+        # A 32-bit release names each board's Cascadia loader; it has no Pongo, m1n1 or logo.
+        for board, row in sorted(offered['loaders']['cascadia'].items()):
+            document += table(f'cascadia.{board}', row)
     document += table('install_tools', offered['install_tools'])
     for name, layer in sorted(offered['platforms'].items()):
         document += f'\n[platforms.{name}]\nboards = {json.dumps(layer["boards"])}\n'
@@ -190,6 +216,9 @@ def main():
     for name in ('base', 'base-receipt', 'inputs', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--version', required=True)
+    parser.add_argument('--arch', choices=sorted(ARCHITECTURES), default='aarch64', help="the root's architecture")
+    parser.add_argument('--platform', action='append', default=[],
+                        help='with --orchard-release: only this platform; repeat (default: every one of --arch)')
     parser.add_argument('--orchard', type=Path, help='orchard snapshot (default: ORCHARD_CHECKOUT, then .orchard)')
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument('--orchard-release', metavar='TAG', help="take orchard's files finished from this build")
@@ -198,26 +227,37 @@ def main():
     if args.output.exists() or args.output.is_symlink():
         parser.error('Choose a new output directory')
     orchard = orchard_root(args.orchard)
+    known = orchard_platforms(orchard)
+    selected = args.platform or ([] if args.arch == 'aarch64' else
+                                 sorted(name for name, arch in known.items() if arch == args.arch))
     components, inputs = verify_inputs(args.inputs)
     resolved = json.loads(args.orchard_inputs.read_text()) if args.orchard_inputs else None
+    for name in (*selected, *(resolved['platforms'] if resolved else ())):
+        if known.get(name) != args.arch:
+            parser.error(f'{name} is not a platform of the {args.arch} root')
     revision = resolved['orchard'] if resolved else None
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.minimal-build-', dir=args.output.parent) as temp:
         output = Path(temp) / 'release'
         output.mkdir()
-        root_archive(args.base, args.base_receipt, components, output, args.version, orchard)
-        source = ('--release', args.orchard_release) if args.orchard_release else ('--inputs', args.orchard_inputs)
+        root_archive(args.base, args.base_receipt, components, output, args.version, orchard, args.arch)
+        # --architecture only for 32-bit: the arm64 index is the default (and older orchards lack the option).
+        source = (('--release', args.orchard_release,
+                   *(('--architecture', ARCHITECTURES[args.arch]['orchard']) if args.arch != 'aarch64' else ()),
+                   *(part for name in selected for part in ('--platform', name)))
+                  if args.orchard_release else ('--inputs', args.orchard_inputs))
         orchard_command(orchard, 'image.platforms_index', output, *source, stdout=subprocess.DEVNULL)
-        offered = tomllib.loads((output / 'platforms.toml').read_text())
+        offered = tomllib.loads((output / ARCHITECTURES[args.arch]['index']).read_text())
         revision = revision or {'commit': offered['commit'], 'modified': False}
         orchard_command(orchard, 'image.root_image', output / 'rootfs.tar.gz', '--output', output)
         root = json.loads((output / 'root-image.json').read_text())
-        shutil.copyfile(components['logo'], output / 'logo.bin')
-        manifests(output, args.version, root, offered, revision)
+        if args.arch == 'aarch64':
+            shutil.copyfile(components['logo'], output / 'logo.bin')
+        manifests(output, args.version, root, offered, revision, args.arch)
         public_inputs = {**inputs, 'files': {name: {k: v for k, v in row.items() if k != 'path'}
                                              for name, row in inputs['files'].items()}}
         (output / 'build-receipt.json').write_text(json.dumps({'distro': 'minimal-linux',
-            'version': args.version, 'orchard': revision, 'platforms': offered['platforms'],
+            'version': args.version, 'architecture': args.arch, 'orchard': revision, 'platforms': offered['platforms'],
             'base': json.loads(args.base_receipt.read_text()), 'inputs': public_inputs,
             'physical_device_operations_performed': False, 'hardware_validated': False}, indent=2) + '\n')
         shutil.rmtree(output / '.work', ignore_errors=True)

@@ -12,15 +12,17 @@ import stat
 import struct
 import subprocess
 
-EVENT = struct.Struct('<qqHHi')  # Linux ARM64 input_event, 24 bytes.
+# Linux input_event: two longs of time, then type, code, value (arm64: 24 bytes, armv7: 16).
+EVENT = struct.Struct('@llHHi')
 EV_KEY, VOLUME_DOWN, VOLUME_UP, POWER = 1, 114, 115, 116
 RUNTIME = Path('/run/minimal-linux')
+LONG_BITS = 8 * struct.calcsize('@l')  # the kernel's capability words are longs
 
 
 def key_bits(text):
     bits = 0
     for word in text.split():
-        bits = (bits << 64) | int(word, 16)
+        bits = (bits << LONG_BITS) | int(word, 16)
     return bits
 
 

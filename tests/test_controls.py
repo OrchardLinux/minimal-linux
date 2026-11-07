@@ -91,7 +91,7 @@ class Controls(unittest.TestCase):
     def test_actual_gpio_key_bitmap_and_abi(self):
         bits = buttons.key_bits('100000000000 1c000000000000 0')
         self.assertTrue(all(bits & (1 << key) for key in (114, 115, 116)))
-        self.assertEqual(buttons.EVENT.size, 24)
+        self.assertEqual(buttons.EVENT.size, 24 if buttons.LONG_BITS == 64 else 16)
 
     def test_device_selection_is_unique_and_not_touch(self):
         for event, name in (('event0', 'gpio-keys'), ('event1', 'touchscreen')):
