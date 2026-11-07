@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-apk add --no-cache openrc python3 bash kmod util-linux e2fsprogs openssh-client-default merge-usr \
+apk add --no-cache openrc python3 bash kmod util-linux e2fsprogs e2fsprogs-extra openssh-client-default merge-usr \
   shadow openssl
 # The one regular user; orchard's installer sets its password (chpasswd).
 useradd --create-home --uid 1000 --user-group --shell /bin/bash tablet
@@ -12,4 +12,5 @@ rm -f /etc/machine-id /var/lib/dbus/machine-id
 test "$(readlink /lib)" = usr/lib
 test "$(readlink /bin)" = usr/bin
 test "$(readlink /sbin)" = usr/sbin
+test -x /usr/sbin/resize2fs  # the install finish step grows the root
 test ! -e /usr/lib/systemd/systemd
