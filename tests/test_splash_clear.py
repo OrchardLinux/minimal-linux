@@ -11,7 +11,7 @@ module = importlib.util.module_from_spec(spec)
 loader.exec_module(module)
 
 
-def layout(width=4, height=3, stride=20, alpha=False):
+def layout(width=4, height=3, stride=20, alpha=False, long=8):
     variable, fixed = bytearray(160), bytearray(80)
     struct.pack_into('<8I', variable, 0, width, height, width, height, 0, 0, 32, 0)
     for offset, shift in ((32, 16), (44, 8), (56, 0)):
@@ -19,13 +19,23 @@ def layout(width=4, height=3, stride=20, alpha=False):
     if alpha:
         struct.pack_into('<3I', variable, 68, 24, 8, 0)
     fixed[:16] = b'simpledrmdrmfb\0\0\0'
-    struct.pack_into('<I', fixed, 24, stride * height)
-    struct.pack_into('<3I', fixed, 28, 0, 0, 2)
-    struct.pack_into('<I', fixed, 48, stride)
+    struct.pack_into('<I', fixed, 16 + long, stride * height)
+    struct.pack_into('<3I', fixed, 20 + long, 0, 0, 2)
+    struct.pack_into('<I', fixed, 40 + long, stride)
     return variable, fixed
 
 
 class Framebuffer(unittest.TestCase):
+    def test_32_bit_layout(self):
+        # armv7: fb_fix_screeninfo's unsigned long is 4 bytes.
+        original = module.LONG
+        module.LONG = 4
+        try:
+            frame, info = module.black_frame(*layout(long=4))
+        finally:
+            module.LONG = original
+        self.assertEqual(info['bytes'], 60)
+
     def test_padded_rows_are_black_without_overrun(self):
         frame, info = module.black_frame(*layout())
         self.assertEqual(frame, b'\0' * 60)
