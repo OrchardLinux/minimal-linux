@@ -103,10 +103,16 @@ jobs:
           if-no-files-found: error
           retention-days: 2
   base:
+    # One base per root: aarch64, and armv7 unpacked by the same arm64 tools without emulation.
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: [test, orchard]
+    strategy:
+      matrix:
+        arch: [aarch64, armv7]
     env:
       HARDWARE_TAG: ${{ needs.orchard.outputs.tag }}
+      ARCH: ${{ matrix.arch }}
+      SUFFIX: ${{ matrix.arch == 'armv7' && '-armv7' || '' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -114,7 +120,7 @@ jobs:
         if: inputs.reuse_base_run_id != ''
         uses: actions/download-artifact@v4
         with:
-          name: minimal-base
+          name: ${{ matrix.arch == 'armv7' && 'minimal-base-armv7' || 'minimal-base' }}
           path: out
           run-id: ${{ inputs.reuse_base_run_id }}
           github-token: ${{ github.token }}
@@ -133,13 +139,13 @@ jobs:
       - name: Build the pinned Alpine base without a container daemon
         if: inputs.reuse_base_run_id == ''
         run: |
-          mkdir -p out/base
-          sudo "$PWD/.venv/bin/python" build_base.py --native --output out/base/base.tar.gz
-          tar -C out -czf out/alpine-base.tar.gz base
+          mkdir -p "out/base$SUFFIX"
+          sudo "$PWD/.venv/bin/python" build_base.py --native --arch "$ARCH" --output "out/base$SUFFIX/base.tar.gz"
+          tar -C out -czf "out/alpine-base$SUFFIX.tar.gz" "base$SUFFIX"
       - uses: actions/upload-artifact@v4
         with:
-          name: minimal-base
-          path: out/alpine-base.tar.gz
+          name: ${{ matrix.arch == 'armv7' && 'minimal-base-armv7' || 'minimal-base' }}
+          path: out/alpine-base${{ matrix.arch == 'armv7' && '-armv7' || '' }}.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 2
@@ -224,12 +230,27 @@ jobs:
             --version "$VERSION" --output out/release
           python audit.py out/release --orchard .orchard
           python -m orchard.manifests --verify-local out/release/index.toml
+          # The 32-bit root, its own release beside it: orchard's 32-bit index (platforms-armv7.toml) from
+          # the same orchard build, and Alpine's tools in place of orchard's static arm64 ones.
+          tar -xzf out/downloads/alpine-base-armv7.tar.gz -C out
+          python pin_components.py --splash out/boot/artwork/splash --logo out/boot/artwork/logo.bin \
+            --output out/inputs-armv7
+          python build.py --arch armv7 --base out/base-armv7/base.tar.gz \
+            --base-receipt out/base-armv7/base.tar.gz.json --inputs out/inputs-armv7/inputs.json \
+            --orchard-release "$HARDWARE_TAG" --orchard .orchard --version "$VERSION" --output out/release-armv7
+          python audit.py out/release-armv7 --orchard .orchard
+          python -m orchard.manifests --verify-local out/release-armv7/index.toml
           # The installer: install.sh and orchard-install.pyz with orchard's launch loaders.
           python -m orchard.installer release out/release \
             --pongo "$tools/quiet/pongo.bin" --m1n1 "$tools/quiet/m1n1.bin"
+          # One release, both roots: its index pins each root's manifest, the board picks by architecture.
           python -m orchard.image.publish --distro minimal-linux --tag "$TAG" \
-            --release-dir out/release --output out/publication
+            --release-dir out/release --release-dir out/release-armv7 --output out/publication
           cp out/release/rootfs.json out/release/build-receipt.json out/base/* out/publication/
+          cp out/release-armv7/rootfs.json out/publication/rootfs-armv7.json
+          cp out/release-armv7/build-receipt.json out/publication/build-receipt-armv7.json
+          cp out/base-armv7/base.tar.gz out/publication/base-armv7.tar.gz
+          cp out/base-armv7/base.tar.gz.json out/publication/base-armv7.tar.gz.json
           git archive --format=tar.gz -o out/publication/minimal-linux-source.tar.gz HEAD
           (cd out/publication && sha256sum ./* > ../SHA256SUMS && mv ../SHA256SUMS .)
       - name: Attest public build

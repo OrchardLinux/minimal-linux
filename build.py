@@ -203,7 +203,9 @@ def manifests(output, version, root, offered, orchard, arch='aarch64'):
     document += table('install_tools', offered['install_tools'])
     for name, layer in sorted(offered['platforms'].items()):
         document += f'\n[platforms.{name}]\nboards = {json.dumps(layer["boards"])}\n'
-        document += table(f'platforms.{name}.layer', {key: value for key, value in layer.items() if key != 'boards'})
+        # The 32-bit index says each layer's architecture; the release is of one architecture and doesn't.
+        document += table(f'platforms.{name}.layer', {key: value for key, value in layer.items()
+                                                      if key not in ('boards', 'architecture')})
     path = output / 'release.toml'
     path.write_text(document)
     (output / 'index.toml').write_text('schema = 2\nkind = "orchard.index"\ndistro = "minimal-linux"\n'

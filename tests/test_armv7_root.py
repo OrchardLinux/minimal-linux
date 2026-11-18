@@ -15,6 +15,7 @@ import unittest
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
 import snapshot  # noqa: E402
+from orchard.manifests import validate  # noqa: E402  the release CI checks every manifest against the schema
 
 
 def load(name, path):
@@ -153,7 +154,8 @@ class Manifest(unittest.TestCase):
                        'install_tools': build.receipt(source / 'install-tools-armv7.tar.gz'),
                        'platforms': {'apple-armv7': {**build.receipt(source / 'platform-apple-armv7.tar.gz'),
                                                      'compression': 'gzip', 'expanded_bytes': 10, 'members': 2,
-                                                     'kernel_release': '6.12-armv7', 'boards': ['p105']}}}
+                                                     'kernel_release': '6.12-armv7', 'boards': ['p105'],
+                                                     'architecture': 'arm'}}}
             manifest = tomllib.loads(build.manifests(source, '1', root, offered,
                                                      {'commit': 'c' * 40, 'modified': False}, 'armv7').read_text())
             self.assertEqual(manifest['boot_method'], 'recovery-autogo')
@@ -163,6 +165,8 @@ class Manifest(unittest.TestCase):
             self.assertNotIn('m1n1', manifest)
             self.assertEqual(manifest['platforms']['apple-armv7']['boards'], ['p105'])
             self.assertEqual(manifest['root']['file'], 'root.blocks.zst')
+            self.assertNotIn('architecture', manifest['platforms']['apple-armv7']['layer'])
+            validate(manifest, schema=True)
 
 
 if __name__ == '__main__':

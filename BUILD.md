@@ -2,7 +2,7 @@
 
 ## GitHub Actions
 
-`.github/workflows/build.yml` runs unit tests on pull requests and `main`. Version tags (`v*`) and manual dispatches build the image: macOS renders the loader artwork, Linux ARM64 builds m1n1, and Linux ARM64 extracts the digest-pinned Alpine OCI base with `skopeo`/`umoci` and runs `system/install-base` in a native chroot. This is the same install recipe used by the local Containerfile, without Podman or a container daemon.
+`.github/workflows/build.yml` runs unit tests on pull requests and `main`. Version tags (`v*`) and manual dispatches build the image: macOS renders the loader artwork, Linux ARM64 builds m1n1, and Linux ARM64 extracts the digest-pinned Alpine OCI base with `skopeo`/`umoci` and runs `system/install-base` in a native chroot. This is the same install recipe used by the local Containerfile, without Podman or a container daemon. A second base job on the same runner builds the armv7 base (`build_base.py --arch armv7`, see [32-bit](#32-bit-armv7)), and assembly builds the armv7 root as a release of its own from orchard's `platforms-armv7.toml`; `orchard.image.publish` then publishes both roots as one release, whose `index.toml` pins the aarch64 manifest as `[release]` and the armv7 one as `[releases.armv7]` (`release-armv7.toml`, `root-armv7.blocks.zst`, `rootfs-armv7.json`, `build-receipt-armv7.json`, `base-armv7.tar.gz`). The installer picks the root of the attached board's architecture.
 
 Select the published orchard release with the compiled components in manual dispatch; tag builds use the explicit default in the workflow. `ci/dependencies` checks out orchard's `main` (or `ORCHARD_REF`), verifies that release's component bundle and exposes its compiled kernel/modules/tools. The build receipt records the exact orchard commit.
 
@@ -25,7 +25,8 @@ installs it. The rest of this page is what that entry runs, step by step.
 
 ### 32-bit (armv7)
 
-A release has one root of one architecture. `orchard build --platform apple-armv7`
+A local build has one root of one architecture (a tagged release carries both, see
+above). `orchard build --platform apple-armv7`
 (or `tools/build.py --arch armv7`) builds the armv7 root and its own release, for
 orchard's 32-bit platforms: the same packages, services and configuration as the
 arm64 root, with Alpine's dropbear and udhcpd (`busybox-extras`) in place of
