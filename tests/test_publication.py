@@ -52,7 +52,7 @@ class Publication(unittest.TestCase):
             manifest = tomllib.loads(release(source).read_text())
             validate(manifest), validate(tomllib.loads((source / 'index.toml').read_text()))
             self.assertEqual(manifest['install'], {
-                'default_root': '/minimal', 'ready': '/run/orchard-ready',
+                'default_root': '/minimal', 'base': 'apk', 'ready': '/run/orchard-ready',
                 'account': {'user': 'tablet', 'password': True, 'pin': False, 'passwordless_sudo': False}})
             self.assertEqual(sorted(manifest['platforms']), ['apple-16k', 'apple-4k'])
 

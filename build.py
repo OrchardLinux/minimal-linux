@@ -188,7 +188,8 @@ def manifests(output, version, root, offered, orchard, arch='aarch64'):
     document += table('orchard', orchard)
     # The one regular user gets its password at install; no lock screen, so no PIN.
     # The ready file is minimal-ready's, once services and the splash are done.
-    document += table('install', {'default_root': '/minimal', 'ready': '/run/orchard-ready'})
+    # base: the root's package manager, which installs orchard's kernel as its package.
+    document += table('install', {'default_root': '/minimal', 'base': 'apk', 'ready': '/run/orchard-ready'})
     document += table('install.account', {'user': 'tablet', 'password': True, 'pin': False,
                                           'passwordless_sudo': False})
     document += table('root', {key: value for key, value in root.items() if key != 'map'})
