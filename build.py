@@ -160,6 +160,11 @@ def root_archive(base, base_receipt, components, output, version, hardware, arch
             member = tarfile.TarInfo('etc/runlevels/sysinit/cgroups')
             member.type, member.mode, member.linkname = tarfile.SYMTYPE, 0o777, '/etc/init.d/cgroups'
             add(member)
+            # Alpine's stock check of the fstab filesystems (rc-update add fsck boot): /boot, whose
+            # FAT dirty bit an unclean shutdown leaves set until fsck.fat clears it.
+            member = tarfile.TarInfo('etc/runlevels/boot/fsck')
+            member.type, member.mode, member.linkname = tarfile.SYMTYPE, 0o777, '/etc/init.d/fsck'
+            add(member)
     record = {'schema': 2, 'kind': 'rootfs', 'release': version, 'architecture': arch,
               'bytes': path.stat().st_size, 'sha256': sha(path), 'compression': 'gzip',
               'expanded_bytes': expanded, 'members': count,

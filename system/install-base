@@ -1,7 +1,13 @@
 #!/bin/sh
 set -eu
-apk add --no-cache openrc python3 bash kmod util-linux e2fsprogs e2fsprogs-extra openssh-client-default merge-usr \
+apk add --no-cache openrc python3 bash kmod util-linux e2fsprogs e2fsprogs-extra dosfstools openssh-client-default merge-usr \
   shadow openssl
+# OpenRC's fsck service (boot runlevel, build.py) checks /boot, the FAT
+# boot partition (fstab pass 2), which clears its dirty bit after an unclean
+# shutdown. A check that cannot repair logs and lets the boot go on, so USB
+# serial and SSH stay reachable.
+test -e /etc/conf.d/fsck
+printf '\n# Keep booting when errors remain: USB serial and SSH stay reachable.\nfsck_abort_on_errors="NO"\n' >> /etc/conf.d/fsck
 # The one regular user; orchard's installer sets its password (chpasswd).
 useradd --create-home --uid 1000 --user-group --shell /bin/bash tablet
 merge-usr --dryrun
@@ -13,4 +19,5 @@ test "$(readlink /lib)" = usr/lib
 test "$(readlink /bin)" = usr/bin
 test "$(readlink /sbin)" = usr/sbin
 test -x /usr/sbin/resize2fs  # the install finish step grows the root
+test -x /usr/sbin/fsck -a -x /usr/sbin/fsck.vfat -a -e /etc/init.d/fsck  # the boot check of /boot
 test ! -e /usr/lib/systemd/systemd

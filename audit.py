@@ -117,6 +117,7 @@ def audit(directory):
     for name in ('usr/sbin/resize2fs', 'usr/bin/python3',
                  'usr/sbin/dropbear', 'usr/libexec/minimal-linux/busybox', 'etc/init.d/orchard-ssh', 'etc/init.d/orchard-usb',
                  'etc/runlevels/default/orchard-ssh', 'etc/runlevels/default/orchard-usb',
+                 'usr/sbin/fsck.vfat', 'etc/init.d/fsck', 'etc/runlevels/boot/fsck',
                  'etc/init.d/orchard-splash', 'etc/orchard/udhcpd.conf'):
         assert name in entries, name
     assert json.loads(entries['etc/orchard/release.json'][0])['release'] == record['release']

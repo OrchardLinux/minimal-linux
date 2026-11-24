@@ -12,7 +12,7 @@ cp /etc/apk/repositories "$root/etc/apk/repositories"
 # dropbear and busybox-extras (udhcpd) in place of orchard's arm64 static tools.
 apk --root "$root" --arch armv7 --initdb --no-scripts --no-cache --keys-dir /etc/apk/keys add \
   alpine-baselayout alpine-keys alpine-release apk-tools busybox musl-utils \
-  openrc python3 bash kmod util-linux e2fsprogs e2fsprogs-extra openssh-client-default shadow openssl \
+  openrc python3 bash kmod util-linux e2fsprogs e2fsprogs-extra dosfstools openssh-client-default shadow openssl \
   dropbear busybox-extras
 # Arm64 helpers for the steps below; they change only the builder.
 apk add --no-cache merge-usr shadow tar
@@ -34,6 +34,9 @@ done
 groupadd --root "$root" --system klogd
 useradd --root "$root" --system --no-create-home --home-dir /dev/null --shell /sbin/nologin \
   --gid klogd --comment klogd klogd
+# OpenRC's fsck service checks /boot; errors it cannot repair let the boot go on.
+test -e "$root/etc/conf.d/fsck"
+printf '\n# Keep booting when errors remain: USB serial and SSH stay reachable.\nfsck_abort_on_errors="NO"\n' >> "$root/etc/conf.d/fsck"
 # The one regular user; orchard's installer sets its password (chpasswd).
 useradd --root "$root" --create-home --uid 1000 --user-group --shell /bin/bash tablet
 merge-usr --root "$root" --dryrun
@@ -42,6 +45,7 @@ apk --root "$root" info -v > "$root/etc/alpine-packages.lock"
 rm -f "$root/etc/machine-id" "$root/var/lib/dbus/machine-id"
 test "$(cat "$root/etc/apk/arch")" = armv7
 test -x "$root/usr/sbin/resize2fs" -a -e "$root/usr/bin/python3"
+test -x "$root/usr/sbin/fsck" -a -x "$root/usr/sbin/fsck.vfat" -a -e "$root/etc/init.d/fsck"
 test "$(readlink "$root/lib")" = usr/lib
 test "$(readlink "$root/bin")" = usr/bin
 test "$(readlink "$root/sbin")" = usr/sbin
