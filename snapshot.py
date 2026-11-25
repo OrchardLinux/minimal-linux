@@ -29,10 +29,17 @@ def root(explicit=None):
 
 
 def command(snapshot, module, *argv, **kwargs):
-    """Run orchard's producer MODULE (orchard.NAME) from SNAPSHOT."""
-    argv = [sys.executable, '-m', f'orchard.{module}', *map(str, argv)]
-    print('+', ' '.join(argv), flush=True)
+    """Run orchard's producer MODULE (orchard.NAME) from SNAPSHOT.
+
+    Under the orchard tool's build (ORCHARD_TOOL names it) the tool resolves the
+    inputs itself: the same arguments and the same document, with paths into its cache.
+    """
     environment = {**os.environ, 'PYTHONPATH': str(Path(snapshot) / 'src'), 'ORCHARD_CHECKOUT': str(snapshot)}
+    if module == 'inputs' and os.environ.get('ORCHARD_TOOL'):
+        argv = [os.environ['ORCHARD_TOOL'], 'inputs', *map(str, argv)]
+    else:
+        argv = [sys.executable, '-m', f'orchard.{module}', *map(str, argv)]
+    print('+', ' '.join(argv), flush=True)
     return subprocess.run(argv, env=environment, check=True, **kwargs)
 
 
