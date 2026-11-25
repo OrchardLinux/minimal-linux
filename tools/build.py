@@ -79,9 +79,9 @@ def main():
         snapshot.command(orchard, 'inputs', '--output', resolved, *selected)
         inputs = Path(temporary) / 'public'
         pinned = ['--splash', artwork / 'splash', '--logo', artwork / 'logo.bin']
+        shared = json.loads(resolved.read_text())['shared']
         if arch == 'aarch64':
             # orchard's static arm64 tools; an armv7 root has Alpine's packages of them.
-            shared = json.loads(resolved.read_text())['shared']
             tools = {name: Path(path) for name, path in shared['tools'].items()}
             pinned += ['--loader', shared['m1n1'], '--pongo', shared['pongo'],
                        '--busybox', tools['busybox'], '--dropbear', tools['dropbear'],
@@ -92,8 +92,11 @@ def main():
                '--inputs', inputs / 'inputs.json', '--orchard-inputs', resolved, '--orchard', orchard,
                '--version', args.version, '--output', args.output)
     python('audit.py', args.output, '--orchard', orchard)
-    # install.sh and orchard-install.pyz, with orchard's launch loaders.
-    snapshot.command(orchard, 'installer', 'release', args.output)
+    # install.sh and orchard-install.pyz, with orchard's launch loaders: the resolved ones, where the
+    # document names them (an armv7 one from orchard's Python does not), so the installer builds none.
+    loaders = (['--pongo', shared['pongo'], '--m1n1', shared['m1n1']]
+               if {'pongo', 'm1n1'} <= shared.keys() else [])
+    snapshot.command(orchard, 'installer', 'release', args.output, *loaders)
 
 
 if __name__ == '__main__':
