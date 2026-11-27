@@ -92,11 +92,9 @@ def main():
                '--inputs', inputs / 'inputs.json', '--orchard-inputs', resolved, '--orchard', orchard,
                '--version', args.version, '--output', args.output)
     python('audit.py', args.output, '--orchard', orchard)
-    # install.sh and orchard-install.pyz, with orchard's launch loaders: the resolved ones, where the
-    # document names them (an armv7 one from orchard's Python does not), so the installer builds none.
-    loaders = (['--pongo', shared['pongo'], '--m1n1', shared['m1n1']]
-               if {'pongo', 'm1n1'} <= shared.keys() else [])
-    snapshot.command(orchard, 'installer', 'release', args.output, *loaders)
+    # install.sh: installs the orchard command and runs `orchard install` for the index beside it.
+    python('release/install_script.py', '--index', 'index.toml', '--url', 'install.sh',
+           '--output', Path(args.output) / 'install.sh')
 
 
 if __name__ == '__main__':

@@ -41,14 +41,14 @@ Distro builds use the orchard checkout `orchard` runs and explicit component art
 ## Install
 
 Back up the device first; storage changes can permanently erase data. With the
-device in DFU mode, a published release installs with its own installer, which
-brings its own Python:
+device in DFU mode, a published release installs with its `install.sh`, which
+installs the `orchard` command and runs `orchard install` for the release:
 
 ```sh
 curl -fsSL https://github.com/OrchardLinux/minimal-linux/releases/latest/download/install.sh | sh
 ```
 
-A local build has the same installer next to it (`sh out/releases/VERSION/install.sh`),
+A local build has the same script next to it (`sh out/releases/VERSION/install.sh`),
 or install it with your orchard checkout:
 
 ```sh
