@@ -254,7 +254,7 @@ jobs:
             --release-dir out/release --release-dir out/release-armv7 --output out/publication
           # install.sh: installs the orchard command and runs `orchard install` for this release.
           base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
-          python release/install_script.py --index "$base/index.toml" --url "$base/install.sh" \
+          python .orchard/producers/install_script.py --name 'Minimal Linux' --index "$base/index.toml" --url "$base/install.sh" \
             --output out/publication/install.sh
           cp out/release/rootfs.json out/release/build-receipt.json out/base/* out/publication/
           cp out/release-armv7/rootfs.json out/publication/rootfs-armv7.json

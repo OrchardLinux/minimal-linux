@@ -77,7 +77,7 @@ python3 build.py --base out/base/base.tar.gz --base-receipt out/base/base.tar.gz
   --version YOUR_NEW_VERSION --output out/releases/YOUR_NEW_VERSION
 python3 audit.py out/releases/YOUR_NEW_VERSION --orchard "$ORCHARD"
 python3 -m orchard.manifests --verify-local out/releases/YOUR_NEW_VERSION/index.toml
-python3 release/install_script.py --index index.toml --url install.sh \
+python3 "$ORCHARD/producers/install_script.py" --name 'Minimal Linux' --index index.toml --url install.sh \
   --output out/releases/YOUR_NEW_VERSION/install.sh
 ```
 

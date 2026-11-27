@@ -93,7 +93,7 @@ def main():
                '--version', args.version, '--output', args.output)
     python('audit.py', args.output, '--orchard', orchard)
     # install.sh: installs the orchard command and runs `orchard install` for the index beside it.
-    python('release/install_script.py', '--index', 'index.toml', '--url', 'install.sh',
+    python(orchard / 'producers/install_script.py', '--name', 'Minimal Linux', '--index', 'index.toml', '--url', 'install.sh',
            '--output', Path(args.output) / 'install.sh')
 
 
