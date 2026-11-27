@@ -249,12 +249,13 @@ jobs:
             --orchard-release "$HARDWARE_TAG" --orchard .orchard --version "$VERSION" --output out/release-armv7
           python audit.py out/release-armv7 --orchard .orchard
           python -m orchard.manifests --verify-local out/release-armv7/index.toml
-          # The installer: install.sh and orchard-install.pyz with orchard's launch loaders.
-          python -m orchard.installer release out/release \
-            --pongo "$tools/quiet/pongo.bin" --m1n1 "$tools/quiet/m1n1.bin"
           # One release, both roots: its index pins each root's manifest, the board picks by architecture.
           python -m orchard.image.publish --distro minimal-linux --tag "$TAG" \
             --release-dir out/release --release-dir out/release-armv7 --output out/publication
+          # install.sh: installs the orchard command and runs `orchard install` for this release.
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          python release/install_script.py --index "$base/index.toml" --url "$base/install.sh" \
+            --output out/publication/install.sh
           cp out/release/rootfs.json out/release/build-receipt.json out/base/* out/publication/
           cp out/release-armv7/rootfs.json out/publication/rootfs-armv7.json
           cp out/release-armv7/build-receipt.json out/publication/build-receipt-armv7.json
